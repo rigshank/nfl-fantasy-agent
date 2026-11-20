@@ -5,6 +5,8 @@ from .breakouts import BreakoutService
 from .integrations.sleeper import DataUnavailable
 from .storage import BudgetExceeded
 from .models import utcnow
+from .waiver_cards import page, signal_cards, render_player_evidence
+from .evidence_ui import render_sources
 from . import ui
 
 
@@ -36,22 +38,19 @@ def render_breakouts(snapshot,roster_id,league_service,config,store):
     b.metric("Medium confidence",sum(x.confidence=="medium" for x in signals))
     c.metric("Observed week",run.week)
     st.subheader("Opportunity leaderboard")
-    def change(b,name):return next((c.change for c in b.changes if c.metric==name),None)
     st.caption("Ownership/statistical analysis: "+ui.local_time(run.snapshot_at))
-    st.dataframe([{"Player":snapshot.players[b.player_id].name,"Position":run.evaluations[b.player_id].position,
-        "Signal /100":b.score,"Confidence":b.confidence,"Evidence":b.label,"Opportunity change":change(b,"opportunities"),
-        "Snap-share change":change(b,"snap_share"),"Target-share change":change(b,"target_share"),
-        "Prior games":b.prior_games,"Recent games":b.recent_games} for b in signals],hide_index=True,width="stretch")
+    st.caption("Opportunity scores rank measured role changes, not breakout probabilities. Headshots and injury flags reflect the dated Sleeper catalog. Expand a card for its reasoning and uncertainty.")
     if signals:
+        shown,offset=page(signals,'radar_signal_page','Candidates')
+        st.html(signal_cards(snapshot,shown,offset))
+        st.subheader("Player evidence")
         pid=st.selectbox("Inspect opportunity evidence",[b.player_id for b in signals],format_func=lambda p:snapshot.players[p].name)
         signal=next(b for b in signals if b.player_id==pid)
-        for reason in signal.reasons:st.write(reason)
-        for limitation in signal.limitations:st.caption(limitation)
-        st.dataframe(run.evaluations[pid].weekly_observed,hide_index=True,width="stretch")
+        with st.container(border=True):
+            render_player_evidence(snapshot,pid,run.evaluations[pid],signal,key_prefix='radar')
+            with st.expander("Why this player is on the radar",expanded=True):
+                for reason in signal.reasons:st.write(reason)
         st.caption("Ask AI Analyst about this player for current injury/role reporting and roster-specific advice.")
     else:st.info("No positive opportunity signals meet these filters. No breakout was invented.")
-    with st.expander("Sources and limitations"):
-        for warning in run.warnings:st.write(warning)
-        for source in run.sources:
-            st.link_button(source.name,source.url);st.caption("Retrieved "+ui.local_time(source.retrieved_at))
+    render_sources(run.sources,run.warnings,'radar')
     st.download_button("Export breakout evidence",run.model_dump_json(indent=2),"breakouts.json","application/json")

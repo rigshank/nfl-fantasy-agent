@@ -115,7 +115,7 @@ def page(items, key, noun):
     return items[offset:offset + size], offset
 
 
-def render_player_evidence(snapshot, player_id, value, signal=None):
+def render_player_evidence(snapshot, player_id, value, signal=None, key_prefix='waiver'):
     import streamlit as st
     import altair as alt
     import pandas as pd
@@ -126,8 +126,10 @@ def render_player_evidence(snapshot, player_id, value, signal=None):
     if signal:
         st.markdown('**Opportunity changes**')
         st.html(usage_cards(signal))
-        for warning in signal.limitations:
-            st.caption(warning)
+        if signal.limitations:
+            with st.expander(f'Signal limitations · {len(signal.limitations)} notes'):
+                for warning in signal.limitations:
+                    st.caption(warning)
     if value.weekly_observed:
         with st.expander('Weekly performance · observed games', expanded=False):
             chart = alt.Chart(pd.DataFrame(value.weekly_observed)).mark_line(point=True, color='#4edacf').encode(
@@ -135,7 +137,7 @@ def render_player_evidence(snapshot, player_id, value, signal=None):
                 tooltip=['week:O', alt.Tooltip('fantasy_points:Q', format='.2f')])
             st.altair_chart(chart.properties(height=180).configure(background='transparent'), width='stretch')
             st.caption('Only verified appearances are shown; missing weeks are not filled with zeroes. Expand a page of game evidence below.')
-            rows, _ = page(sorted(value.weekly_observed, key=lambda r: r['week'], reverse=True), 'waiver_week_page', 'Games')
+            rows, _ = page(sorted(value.weekly_observed, key=lambda r: r['week'], reverse=True), key_prefix + '_week_page', 'Games')
             st.html(weekly_cards(rows))
     else:
         st.caption('No verified weekly game evidence is available.')
