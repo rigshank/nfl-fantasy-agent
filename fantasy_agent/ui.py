@@ -29,13 +29,18 @@ def player_table(snapshot: Snapshot, ids: list[str] | set[str]):
 
 
 def roster_view(snapshot, roster):
+    from .roster_cards import roster_grid
     st.subheader(roster.manager)
-    groups = {"Starters": set(roster.starters) - {"0"},
-              "Bench": owned(roster) - set(roster.starters + roster.reserve + roster.taxi),
-              "Injured reserve": set(roster.reserve), "Taxi squad": set(roster.taxi)}
-    for label, ids in groups.items():
-        with st.expander(f"{label} · {len(ids)}", expanded=label in {"Starters", "Bench"}):
-            player_table(snapshot, sorted(ids))
+    slot_names=[s for s in snapshot.roster_positions if s not in {"BN","IR","TAXI"}]
+    slots={pid:slot for pid,slot in zip(roster.starters,slot_names) if pid!="0"}
+    groups = {"Starters": list(dict.fromkeys(p for p in roster.starters if p!="0")),
+              "Bench": sorted(owned(roster)-set(roster.starters+roster.reserve+roster.taxi),key=lambda p:snapshot.players[p].name),
+              "Injured reserve": roster.reserve, "Taxi squad": roster.taxi}
+    st.caption("Headshots from Sleeper; initials appear when a photo is unavailable. Injury labels reflect the dated player catalog, not medical clearance.")
+    for label,ids in groups.items():
+        with st.expander(f"{label} · {len(ids)}",expanded=label in {"Starters","Bench"}):
+            if ids:st.html(roster_grid(snapshot,ids,slots if label=="Starters" else None))
+            else:st.caption("No players in this group.")
 
 
 def standings(snapshot):
