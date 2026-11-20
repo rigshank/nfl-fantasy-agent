@@ -136,11 +136,8 @@ def league_view(snapshot):
         from .rules_ui import render_rules
         render_rules(snapshot)
     with activity_tab:
-        for field,label in [("transactions","Weekly transactions"),("traded_picks","Traded draft picks"),("drafts","Draft metadata")]:
-            with st.expander(label):
-                if any(w.startswith(field+" unavailable") for w in snapshot.warnings):st.warning("Unavailable on the last refresh.")
-                else:st.json(getattr(snapshot,field))
-        st.caption("Current-week activity and traded-pick metadata; not a complete historical log or future-pick inventory.")
+        from .activity_ui import render_activity
+        render_activity(snapshot)
 
 
 def waivers(snapshot):
