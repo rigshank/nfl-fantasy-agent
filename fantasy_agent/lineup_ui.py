@@ -7,6 +7,7 @@ from .integrations.research import ProviderUnavailable
 from .storage import BudgetExceeded
 from . import ui
 from .analysis import owned
+from .lineup_cards import starting_cards, comparison_cards, render_evidence
 
 
 def lineup_table(report,players):
@@ -46,22 +47,16 @@ def render_lineup(snapshot,roster_id,service,config,store):
         st.info("A full-game total cannot be compared reliably because games have started or some slots lack supported evidence. Unlocked substitutions are shown below.")
     starters,comparison=st.tabs(["Starting lineup","Detailed comparison"])
     with starters:
-        from .design import row
-        left,right=st.columns([1.5,1])
-        with left,st.container(border=True):
+        with st.container(border=True):
             st.subheader("◎  Your starting unit")
-            for slot in report.slots:
-                player=snapshot.players.get(slot.recommended_id)
-                row(player.name if player else "Unfilled",slot.slot+" · "+(slot.opponent or "Opponent unverified"),"Locked" if slot.locked else f"{slot.estimate:.1f} est." if slot.estimate is not None else "No estimate")
-        with right,st.container(border=True):
-            st.subheader("Decision notes")
-            st.metric("Locked / unverified slots",sum(r.locked for r in report.slots))
-            st.metric("Suggested substitutions",sum(r.current_id!=r.recommended_id for r in report.slots))
+            left,right=st.columns(2)
+            left.metric("Locked / unverified slots",sum(r.locked for r in report.slots))
+            right.metric("Suggested substitutions",sum(r.current_id!=r.recommended_id for r in report.slots))
+            st.caption("Player photos and injury flags reflect the dated Sleeper catalog. Open a slot’s reasoning before making a start/sit change.")
+            st.html(starting_cards(report,snapshot.players))
             st.caption("Statistical estimates, not guaranteed outcomes. Review late injury reports before submitting in Sleeper.")
-    with comparison:st.dataframe(lineup_table(report,snapshot.players),hide_index=True,width="stretch")
-    with st.expander("Evidence and limitations"):
-        for warning in report.warnings:st.write(warning)
-        for source in report.sources:
-            st.link_button(source.name,source.url);st.caption("Retrieved "+ui.local_time(source.retrieved_at))
-        st.json(report.evidence,expanded=False)
+    with comparison:
+        st.caption("Saved versus recommended by slot. Slot differences are unavailable for locked/unverified assignments; strategy scores remain separate from expected points.")
+        st.html(comparison_cards(report,snapshot.players))
+    render_evidence(report,snapshot.players)
     st.download_button("Export lineup analysis",report.model_dump_json(indent=2),file_name="lineup.json",mime="application/json")
