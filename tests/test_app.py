@@ -35,7 +35,7 @@ def test_all_pages_use_real_data_interfaces_without_demo_toggle(tmp_path):
          patch("fantasy_agent.integrations.nflverse.NFLVerse.csv",return_value=(d.schedule,d.sources[0])):
         app=boot(c,s)
         assert not app.exception and not app.toggle
-        assert "Settings" in app.sidebar.radio[0].options
+        assert any(label.endswith("Settings") for label in app.sidebar.radio[0].options)
         for page in ["My League","Trade Finder","Waiver Wire","Breakout Radar","Lineup Optimizer","AI Analyst","Settings"]:
             app.sidebar.radio[0].set_value(page).run(timeout=30)
             assert not app.exception,page

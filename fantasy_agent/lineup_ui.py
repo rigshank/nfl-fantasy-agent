@@ -21,8 +21,9 @@ def lineup_table(report,players):
 def render_lineup(snapshot,roster_id,service,config,store):
     st.caption("League-scored statistical estimates · Exact slot assignment · Conservative kickoff locks · No lineup is submitted automatically")
     with st.form("lineup_controls"):
-        week=st.selectbox("Week",list(range(snapshot.week,19)))
-        strategy=st.selectbox("Strategy",["expected","upside","floor"],format_func=lambda x:{"expected":"Maximize expected points","upside":"Favor upside","floor":"Favor floor"}[x])
+        left,right=st.columns([1,2])
+        week=left.selectbox("Week",list(range(snapshot.week,19)))
+        strategy=right.selectbox("Strategy",["expected","upside","floor"],format_func=lambda x:{"expected":"Maximize expected points","upside":"Favor upside","floor":"Favor floor"}[x])
         refresh=st.checkbox("Refresh statistical sources",value=False)
         roster=next(r for r in snapshot.rosters if r.roster_id==roster_id)
         excluded=st.multiselect("Exclude from unlocked slots (late inactives or your preference)",sorted(owned(roster)),format_func=lambda p:snapshot.players[p].name,key="lineup_excluded_players")
@@ -43,7 +44,21 @@ def render_lineup(snapshot,roster_id,service,config,store):
         st.metric("Estimated lineup points",f"{report.expected_total:.2f}",f"{report.expected_gain:+.2f} vs saved" if report.expected_gain is not None else None)
     else:
         st.info("A full-game total cannot be compared reliably because games have started or some slots lack supported evidence. Unlocked substitutions are shown below.")
-    st.dataframe(lineup_table(report,snapshot.players),hide_index=True,width="stretch")
+    starters,comparison=st.tabs(["Starting lineup","Detailed comparison"])
+    with starters:
+        from .design import row
+        left,right=st.columns([1.5,1])
+        with left,st.container(border=True):
+            st.subheader("◎  Your starting unit")
+            for slot in report.slots:
+                player=snapshot.players.get(slot.recommended_id)
+                row(player.name if player else "Unfilled",slot.slot+" · "+(slot.opponent or "Opponent unverified"),"Locked" if slot.locked else f"{slot.estimate:.1f} est." if slot.estimate is not None else "No estimate")
+        with right,st.container(border=True):
+            st.subheader("Decision notes")
+            st.metric("Locked / unverified slots",sum(r.locked for r in report.slots))
+            st.metric("Suggested substitutions",sum(r.current_id!=r.recommended_id for r in report.slots))
+            st.caption("Statistical estimates, not guaranteed outcomes. Review late injury reports before submitting in Sleeper.")
+    with comparison:st.dataframe(lineup_table(report,snapshot.players),hide_index=True,width="stretch")
     with st.expander("Evidence and limitations"):
         for warning in report.warnings:st.write(warning)
         for source in report.sources:

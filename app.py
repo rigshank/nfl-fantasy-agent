@@ -1,6 +1,6 @@
 """Personal, real-data Sleeper dashboard. Run: python -m streamlit run app.py."""
 import streamlit as st
-from fantasy_agent import ui
+from fantasy_agent import ui, design
 from fantasy_agent.config import Config
 from fantasy_agent.integrations.sleeper import DataUnavailable, Sleeper
 from fantasy_agent.lineup_ui import render_lineup
@@ -15,6 +15,7 @@ from fantasy_agent.settings_ui import render_settings
 from fantasy_agent.session import clear_analysis,apply_overrides
 
 st.set_page_config(page_title="Fantasy Analyst", page_icon="🏈", layout="wide")
+design.theme()
 try:
     secrets = dict(st.secrets)
 except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
@@ -108,8 +109,9 @@ if not snapshot:
 
 with st.sidebar:
     st.title("🏈 Fantasy Analyst")
+    st.html('<div class="ff-eyebrow">FANTASY INTELLIGENCE</div>')
     st.caption(snapshot.name)
-    section = st.radio("Workspace", ["Overview", "My League", "Trade Finder", "Waiver Wire", "Breakout Radar", "Lineup Optimizer", "AI Analyst", "Settings"], label_visibility="collapsed",key="workspace")
+    section = st.radio("Workspace", ["Overview", "My League", "Trade Finder", "Waiver Wire", "Breakout Radar", "Lineup Optimizer", "AI Analyst", "Settings"], label_visibility="collapsed",key="workspace",format_func=lambda page: f"{design.ICONS[page]}   {page}")
     rosters = {r.roster_id:r for r in snapshot.rosters}
     owner = st.session_state.get("sleeper_user_id")
     default = next((r.roster_id for r in snapshot.rosters if owner and owner in [r.owner_id] + r.co_owners), None)
@@ -142,11 +144,11 @@ identity = (snapshot.league_id, roster_id)
 if st.session_state.get("team_identity") != identity:
     st.session_state["team_identity"] = identity
     clear_analysis(st.session_state,team_changed=True)
-st.title(section)
-st.caption(f"{snapshot.name} · {snapshot.season} · Week {snapshot.week} · {roster.manager}")
-st.caption(f"League snapshot: {ui.local_time(snapshot.refreshed_at)} | Cached player catalog: {ui.local_time(snapshot.catalog_at)}")
-if (utcnow() - snapshot.refreshed_at).total_seconds() > config.league_cache_seconds:
-    st.warning("Showing a dated league snapshot. Refresh for live ownership; recommendations refresh automatically when requested.")
+design.header(section,snapshot,roster)
+from html import escape
+stale=(utcnow()-snapshot.refreshed_at).total_seconds()>config.league_cache_seconds
+status="Refresh recommended" if stale else "League connected"
+st.html(f'<div class="ff-sync"><strong>✓ {status}</strong> Snapshot: {escape(ui.local_time(snapshot.refreshed_at))} · Catalog: {escape(ui.local_time(snapshot.catalog_at))}. Refresh league for current ownership.</div>')
 if snapshot.warnings:
     with st.expander("Data notices"):
         for warning in snapshot.warnings:

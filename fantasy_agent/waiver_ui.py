@@ -59,6 +59,10 @@ def render_waivers(snapshot, roster_id, league_service, config, store):
         return
     st.caption(f"Ownership checked {ui.local_time(run.snapshot_at)} · Forecast weeks {run.start_week}–{run.end_week} · {run.free_players_evaluated} evaluated free players of {run.free_players_checked:,} unowned catalog players")
     st.caption(f"Applied priority: {run.strategy}. Protections: {', '.join(_name(evidence,p) for p in run.protected) or 'IR/taxi only'}. Submit Analyze Waivers to apply changed priorities/protections.")
+    a,b,c=st.columns(3)
+    a.metric("Evaluated free players",run.free_players_evaluated)
+    b.metric("Pickup alternatives",len(run.pickups))
+    c.metric("Forecast window",f"W{run.start_week}–{run.end_week}")
     budget=run.waiver_budget
     if budget.get("remaining") is not None:
         st.caption(f"Reported remaining FAAB: ${budget['remaining']} · Minimum bid: ${budget['minimum_bid']:g}. Commissioner adjustments and pending claims require verification in Sleeper.")

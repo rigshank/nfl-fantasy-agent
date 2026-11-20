@@ -3,6 +3,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
+import altair as alt
+from . import design
 
 from .analysis import depth, free_players, owned
 from .models import Snapshot
@@ -49,58 +51,90 @@ def standings(snapshot):
 
 def overview(snapshot, roster):
     cols = st.columns(4)
-    cols[0].metric("Players owned", len(owned(roster)))
-    cols[1].metric("League format", snapshot.league_type.title())
-    cols[2].metric("Teams", len(snapshot.rosters))
-    cols[3].metric("Eligible free players", len(free_players(snapshot)))
-    left, right = st.columns([1, 1.2])
-    with left:
-        with st.container(border=True):
-            st.subheader("Roster depth")
-            counts = depth(snapshot, roster)
-            if counts:
-                st.bar_chart(pd.DataFrame({"Players": counts}), color="#20bfa9")
-            st.caption("Counts reflect eligible positions, including IR/taxi. Multi-position players may count twice.")
-    with right:
-        with st.container(border=True):
-            st.subheader("Your next moves")
-            empty = roster.starters.count("0")
-            if empty:
-                st.warning(f"{empty} starter slot(s) empty in the saved Sleeper lineup.")
+    cols[0].metric("PLAYERS OWNED", len(owned(roster)))
+    cols[1].metric("LEAGUE FORMAT", snapshot.league_type.title())
+    cols[2].metric("TEAMS", len(snapshot.rosters))
+    cols[3].metric("ELIGIBLE FREE PLAYERS", f"{len(free_players(snapshot)):,}")
+    st.space("small")
+    left, middle, right = st.columns([1.15,1,1.05])
+    counts=depth(snapshot,roster)
+    colors=["#36ddd1","#338df0","#ad91ee","#edc86a","#f080a1"]
+    chart_data=pd.DataFrame([{"Position":p,"Players":n} for p,n in counts.items()])
+    with left, st.container(border=True):
+        st.subheader("◈  Roster depth")
+        st.caption("Eligible positions · includes IR / taxi")
+        if counts:
+            chart=alt.Chart(chart_data).mark_bar(cornerRadiusTopLeft=5,cornerRadiusTopRight=5,size=30).encode(
+                x=alt.X("Position:N",axis=alt.Axis(labelAngle=0,title=None)),y=alt.Y("Players:Q",axis=alt.Axis(tickMinStep=1,title=None)),
+                color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=None),tooltip=["Position","Players"])
+            st.altair_chart(chart.properties(height=200).configure(background="transparent").configure_axis(labelColor="#a6bdcc",gridColor="#233747",domain=False),width="stretch",theme=None)
+    with middle, st.container(border=True):
+        st.subheader("◎  Positional mix")
+        st.caption("Share of position eligibility")
+        if counts:
+            donut=alt.Chart(chart_data).mark_arc(innerRadius=60,outerRadius=87,cornerRadius=3).encode(theta="Players:Q",color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=alt.Legend(orient="bottom",title=None)),tooltip=["Position","Players"])
+            st.altair_chart(donut.properties(height=200).configure(background="transparent").configure_legend(labelColor="#a6bdcc"),width="stretch",theme=None)
+    with right, st.container(border=True):
+        st.subheader("↗  Your next moves")
+        empty=roster.starters.count("0")
+        design.row("Saved lineup",f"{empty} empty slots" if empty else "All starter slots filled", "Review" if empty else "Filled")
+        design.row("Roster availability",f"{len(roster.reserve)} IR · {len(roster.taxi)} taxi",f"{sum(bool(snapshot.players[p].injury_status) for p in owned(roster))} flags")
+        design.link("Optimize this week →","Lineup Optimizer","overview_lineup")
+        def ask_strategy():
+            st.session_state["workspace"]="AI Analyst"
+            st.session_state["queued_question"]="Analyze my entire league and tell me the best moves I can make to improve my team. Prioritize specific actions supported by current evidence."
+        st.button("Analyze my team with AI",on_click=ask_strategy,type="primary",width="stretch")
+    st.caption("Charts count position eligibility, so multi-position players can count twice. Catalog injury flags are not medical clearance.")
+    waivers=st.session_state.get('waiver_run');trades=st.session_state.get('trade_run');breakouts=st.session_state.get('breakout_run')
+    for col,title,page,run,items in zip(st.columns(3),["◇  Waiver shortlist","⇄  Trade opportunities","↗  Breakout watch"],
+            ["Waiver Wire","Trade Finder","Breakout Radar"],[waivers,trades,breakouts],
+            [waivers.pickups if waivers else [],trades.trades if trades else [],breakouts.signals if breakouts else []]):
+        with col,st.container(border=True):
+            st.subheader(title)
+            if run:
+                st.caption("Last analysis · "+local_time(run.snapshot_at))
+                for item in items[:3]:
+                    if page=="Trade Finder":
+                        design.row(" + ".join(snapshot.players[p].name for p in item.receive),"Send: "+" + ".join(snapshot.players[p].name for p in item.send),f"{item.my_ros_gain:+.1f} ROS")
+                    else:
+                        player=snapshot.players[item.player_id]
+                        detail=" / ".join(player.positions)+" · "+(player.team or "No NFL team")
+                        design.row(player.name,detail,f"{item.ros_gain:+.1f} ROS" if page=="Waiver Wire" else f"{item.score:.0f} signal")
+                if not items:st.caption("No qualifying results in this analysis.")
             else:
-                st.write("All saved starter slots are filled.")
-            st.write("Review scoring and roster rules in My League, inspect your bench, then ask the AI Analyst a focused question.")
-            st.info("Open Trade Finder to load statistical team-needs analysis and ranked opportunities. This overview reports roster facts without estimating player values.")
-    st.subheader("League record table")
-    standings(snapshot)
-    def ask_strategy():
-        st.session_state["workspace"]="AI Analyst"
-        st.session_state["queued_question"]="Analyze my entire league and tell me the best moves I can make to improve my team. Prioritize specific actions supported by current evidence."
-    st.button("Analyze my team with AI",on_click=ask_strategy,type="primary")
+                st.html('<div class="ff-empty">Your shortlist appears after analysis. Open this workspace to find evidence-backed opportunities.</div>')
+            design.link("Open "+page+" →",page,"overview_"+page)
+    with st.container(border=True):
+        st.subheader("♜  League standings")
+        standings(snapshot)
 
 
 def league_view(snapshot):
     names = {r.roster_id: r.manager for r in snapshot.rosters}
     rid = st.selectbox("Inspect team", list(names), format_func=names.get)
     r = next(r for r in snapshot.rosters if r.roster_id == rid)
-    roster_view(snapshot, r)
-    st.caption("Position counts describe each opponent's depth; Trade Finder loads statistical evaluations for competitive needs.")
-    st.write(depth(snapshot, r))
-    with st.expander("League scoring and requirements"):
-        st.write("Starter and bench slots", snapshot.roster_positions)
-        st.json(snapshot.scoring)
-        st.json(snapshot.settings)
-        if snapshot.metadata:
-            st.json(snapshot.metadata)
-    for field, label in [("matchups", f"Week {snapshot.week} matchups and scores"),
-                         ("transactions", f"Week {snapshot.week} transactions (including completed trades)"),
-                         ("traded_picks", "Traded draft picks"), ("drafts", "Draft metadata")]:
-        with st.expander(label):
-            if any(w.startswith(field + " unavailable") for w in snapshot.warnings):
-                st.warning("This data was unavailable on the last refresh.")
-            else:
-                st.json(getattr(snapshot, field))
-    st.caption("Draft metadata and traded-pick records are shown. This view does not provide a complete historical transaction log, draft selections or future-pick inventory.")
+    roster_tab,matchup_tab,rules_tab,activity_tab=st.tabs(["Roster & depth","Weekly matchups","Scoring & rules","League activity"])
+    with roster_tab:
+        a,b,c,d=st.columns(4)
+        for col,label,value in zip([a,b,c,d],["Owned","Starters","Injured reserve","Taxi squad"],[len(owned(r)),len(set(r.starters)-{"0"}),len(r.reserve),len(r.taxi)]):col.metric(label,value)
+        roster_view(snapshot,r)
+    with matchup_tab:
+        st.subheader(f"Week {snapshot.week} scoreboard")
+        if snapshot.matchups:
+            st.dataframe([{"Team":names.get(m.get("roster_id"),"Unknown"),"Matchup":m.get("matchup_id"),"Points":m.get("points")} for m in snapshot.matchups],hide_index=True,width="stretch")
+        else:st.info("No matchup data was returned. Check data notices for upstream failures.")
+        standings(snapshot)
+    with rules_tab:
+        st.write("Roster requirements",snapshot.roster_positions)
+        st.dataframe([{"Rule":k,"Points":v} for k,v in snapshot.scoring.items()],hide_index=True,width="stretch")
+        with st.expander("Complete league settings"):
+            st.json(snapshot.settings);st.json(snapshot.metadata)
+    with activity_tab:
+        for field,label in [("transactions","Weekly transactions"),("traded_picks","Traded draft picks"),("drafts","Draft metadata")]:
+            with st.expander(label):
+                if any(w.startswith(field+" unavailable") for w in snapshot.warnings):st.warning("Unavailable on the last refresh.")
+                else:st.json(getattr(snapshot,field))
+        st.caption("Current-week activity and traded-pick metadata; not a complete historical log or future-pick inventory.")
 
 
 def waivers(snapshot):

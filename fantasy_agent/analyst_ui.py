@@ -35,6 +35,14 @@ def supporting_evidence(records):
 
 def render_analyst(snapshot,roster_id,service,config,store):
     st.caption("Ask for an action plan, trade, pickup, player comparison or lineup. The analyst selects Python and research tools as needed.")
+    def prompt(text):st.session_state["queued_question"]=text
+    if not st.session_state["messages"]:
+        with st.container(border=True):
+            st.subheader("What should we work on?")
+            for col,label,question in zip(st.columns(3),["⇄ Find a trade","◇ Improve my bench","◎ Set my lineup"],
+                ["Find realistic trades that improve my starting lineup and explain the other manager's incentive.","Find the best available pickups and explain who I should drop.","Who should I start this week? Research relevant injuries and explain close decisions."]):
+                col.button(label,on_click=prompt,args=(question,),width="stretch")
+            st.caption("Uses your league, deterministic analysis and current reporting. Every important decision should have evidence.")
     web=st.checkbox("Research current news when relevant",value=True)
     for message in st.session_state["messages"]:
         with st.chat_message(message["role"]):

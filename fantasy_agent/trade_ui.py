@@ -81,6 +81,10 @@ def render_trade_finder(snapshot, roster_id, league_service, config, store):
     if not run:
         st.info("Choose filters, then Find Best Trades. Statistics are fetched only on request; AI/search credits are not needed.")
         return
+    a,b,c=st.columns(3)
+    a.metric("Packages evaluated",f"{run.candidates_evaluated:,}")
+    b.metric("Ranked opportunities",len(run.trades))
+    c.metric("Best estimated ROS gain",f"{max((t.my_ros_gain for t in run.trades),default=0):+.1f}")
     evidence_snapshot = st.session_state["trade_snapshot"]
     stale = ((utcnow() - run.snapshot_at).total_seconds() > config.league_cache_seconds
              or snapshot.refreshed_at != run.snapshot_at)

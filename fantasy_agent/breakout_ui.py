@@ -10,8 +10,9 @@ from . import ui
 
 def render_breakouts(snapshot,roster_id,league_service,config,store):
     st.caption("Measured opportunity changes, not touchdown spikes or invented rankings.")
-    scope=st.selectbox("Ownership",["Available players","My team","Entire league"])
-    position=st.selectbox("Breakout position",["All","QB","RB","WR","TE"])
+    scout,filter_col=st.columns([2,1])
+    scope=scout.selectbox("Ownership",["Available players","My team","Entire league"])
+    position=filter_col.selectbox("Breakout position",["All","QB","RB","WR","TE"])
     refresh_stats=st.checkbox("Refresh statistical sources",value=False,key="breakout_refresh_stats")
     refresh=st.button("Refresh Breakout Radar",type="primary")
     identity=(snapshot.league_id,roster_id)
@@ -30,6 +31,11 @@ def render_breakouts(snapshot,roster_id,league_service,config,store):
     owners={p:r.roster_id for r in snapshot.rosters for p in owned(r)}
     signals=[b for b in run.signals if (position=="All" or run.evaluations[b.player_id].position==position) and
         (scope=="Entire league" or scope=="Available players" and b.player_id not in owners or scope=="My team" and owners.get(b.player_id)==roster_id)]
+    a,b,c=st.columns(3)
+    a.metric("Matching signals",len(signals))
+    b.metric("Medium confidence",sum(x.confidence=="medium" for x in signals))
+    c.metric("Observed week",run.week)
+    st.subheader("Opportunity leaderboard")
     def change(b,name):return next((c.change for c in b.changes if c.metric==name),None)
     st.caption("Ownership/statistical analysis: "+ui.local_time(run.snapshot_at))
     st.dataframe([{"Player":snapshot.players[b.player_id].name,"Position":run.evaluations[b.player_id].position,
