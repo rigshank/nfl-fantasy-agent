@@ -55,11 +55,11 @@ def overview(snapshot, roster):
     cols[2].metric("TEAMS", len(snapshot.rosters))
     cols[3].metric("ELIGIBLE FREE PLAYERS", f"{len(free_players(snapshot)):,}")
     st.space("small")
-    left, middle, right = st.columns([1.15,1,1.05])
+    left, middle, right = st.columns(3, border=True)
     counts=depth(snapshot,roster)
     colors=["#36ddd1","#338df0","#ad91ee","#edc86a","#f080a1"]
     chart_data=pd.DataFrame([{"Position":p,"Players":n} for p,n in counts.items()])
-    with left, st.container(border=True):
+    with left:
         st.subheader("◈  Roster depth")
         st.caption("Eligible positions · includes IR / taxi")
         if counts:
@@ -67,13 +67,15 @@ def overview(snapshot, roster):
                 x=alt.X("Position:N",axis=alt.Axis(labelAngle=0,title=None)),y=alt.Y("Players:Q",axis=alt.Axis(tickMinStep=1,title=None)),
                 color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=None),tooltip=["Position","Players"])
             st.altair_chart(chart.properties(height=200).configure(background="transparent").configure_axis(labelColor="#a6bdcc",gridColor="#233747",domain=False),width="stretch",theme=None)
-    with middle, st.container(border=True):
+    with middle:
         st.subheader("◎  Positional mix")
         st.caption("Share of position eligibility")
         if counts:
-            donut=alt.Chart(chart_data).mark_arc(innerRadius=60,outerRadius=87,cornerRadius=3).encode(theta="Players:Q",color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=alt.Legend(orient="bottom",title=None)),tooltip=["Position","Players"])
+            # Vega's fit layout reserves room for the legend. Derive radii from
+            # the remaining plot area so narrow cards never clip a fixed arc.
+            donut=alt.Chart(chart_data).mark_arc(innerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 8) * 0.68"),outerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 8)"),cornerRadius=3).encode(theta="Players:Q",color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=alt.Legend(orient="bottom",title=None,columns=4)),tooltip=["Position","Players"])
             st.altair_chart(donut.properties(height=200).configure(background="transparent").configure_legend(labelColor="#a6bdcc"),width="stretch",theme=None)
-    with right, st.container(border=True):
+    with right:
         st.subheader("↗  Your next moves")
         empty=roster.starters.count("0")
         design.row("Saved lineup",f"{empty} empty slots" if empty else "All starter slots filled", "Review" if empty else "Filled")
