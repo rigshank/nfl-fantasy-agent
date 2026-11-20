@@ -125,10 +125,13 @@ def league_view(snapshot):
         roster_view(snapshot,r)
     with matchup_tab:
         st.subheader(f"Week {snapshot.week} scoreboard")
-        if snapshot.matchups:
-            st.dataframe([{"Team":names.get(m.get("roster_id"),"Unknown"),"Matchup":m.get("matchup_id"),"Points":m.get("points")} for m in snapshot.matchups],hide_index=True,width="stretch")
+        from .matchup_cards import scoreboard,team_records
+        st.caption("Scores reflect the last league refresh; a lead is not a final result. Use Refresh league for the latest scores.")
+        if snapshot.matchups:st.html(scoreboard(snapshot))
         else:st.info("No matchup data was returned. Check data notices for upstream failures.")
-        standings(snapshot)
+        st.subheader("League records")
+        st.caption("Wins – losses – ties · Ordered by wins, then points for. Custom playoff tiebreakers are not modeled.")
+        st.html(team_records(snapshot))
     with rules_tab:
         st.write("Roster requirements",snapshot.roster_positions)
         st.dataframe([{"Rule":k,"Points":v} for k,v in snapshot.scoring.items()],hide_index=True,width="stretch")

@@ -14,6 +14,7 @@ def roster_from_raw(raw: dict, users: dict) -> Roster:
     user = users.get(owner, {})
     metadata = user.get("metadata") or {}
     return Roster(roster_id=raw["roster_id"], owner_id=owner,
+                  avatar=metadata.get("avatar") or user.get("avatar"),
                   co_owners=raw.get("co_owners") or [],
                   manager=metadata.get("team_name") or user.get("display_name") or f"Team {raw['roster_id']}",
                   **{k: raw.get(k) or [] for k in ("players", "starters", "reserve", "taxi")},

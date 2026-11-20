@@ -23,6 +23,7 @@ class Roster(BaseModel):
     owner_id: str | None = None
     co_owners: list[str] = Field(default_factory=list)
     manager: str
+    avatar: str | None = None
     players: list[str] = Field(default_factory=list)
     starters: list[str] = Field(default_factory=list)
     reserve: list[str] = Field(default_factory=list)
