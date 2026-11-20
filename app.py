@@ -14,7 +14,7 @@ from fantasy_agent.breakout_ui import render_breakouts
 from fantasy_agent.settings_ui import render_settings
 from fantasy_agent.session import clear_analysis,apply_overrides
 
-st.set_page_config(page_title="Fantasy Analyst", page_icon="🏈", layout="wide")
+st.set_page_config(page_title="Sideline · Fantasy Football", page_icon="🏈", layout="wide")
 design.theme()
 try:
     secrets = dict(st.secrets)
@@ -99,6 +99,7 @@ if "snapshot" not in st.session_state and config.sleeper_league_id and not st.se
 
 snapshot = st.session_state.get("snapshot")
 if not snapshot:
+    design.brand()
     st.title("Connect your Sleeper league")
     st.write("Enter your username or league ID to load actual rosters, scoring and available players.")
     if st.session_state.get("connection_error"):
@@ -108,9 +109,7 @@ if not snapshot:
     st.stop()
 
 with st.sidebar:
-    st.title("🏈 Fantasy Analyst")
-    st.html('<div class="ff-eyebrow">FANTASY INTELLIGENCE</div>')
-    st.caption(snapshot.name)
+    design.brand(snapshot)
     section = st.radio("Workspace", ["Overview", "My League", "Trade Finder", "Waiver Wire", "Breakout Radar", "Lineup Optimizer", "AI Analyst", "Settings"], label_visibility="collapsed",key="workspace",format_func=lambda page: f"{design.ICONS[page]}   {page}")
     rosters = {r.roster_id:r for r in snapshot.rosters}
     owner = st.session_state.get("sleeper_user_id")

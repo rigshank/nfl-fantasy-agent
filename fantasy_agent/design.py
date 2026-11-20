@@ -13,6 +13,18 @@ COPY = {
  "AI Analyst": ("YOUR PERSONAL WAR ROOM", "Ask a question. Follow the evidence. Make your move."),
  "Settings": ("MISSION CONTROL", "Connections, preferences and data freshness in one place.")}
 
+
+def brand_html(snapshot=None):
+    tagline = f'{snapshot.league_type.upper()} ANALYTICS' if snapshot else 'FANTASY INTELLIGENCE'
+    league = ''
+    if snapshot:
+        league = f'<div class="sl-league"><div class="sl-league-label"><span></span> LEAGUE</div><div class="sl-league-context"><div class="sl-league-name">{escape(snapshot.name)}</div><span class="sl-format">{escape(snapshot.league_type.upper())}</span></div></div>'
+    return f'''<div class="sl-brand" aria-label="Sideline · {escape(tagline,quote=True)}"><div class="sl-brand-lockup"><div class="sl-brand-mark" aria-hidden="true">🏈</div><div class="sl-brand-copy"><div class="sl-brand-name">Sideline</div><div class="sl-brand-tagline">{escape(tagline)}</div></div></div><div class="sl-brand-rule"></div>{league}</div>'''
+
+
+def brand(snapshot=None):
+    st.html(brand_html(snapshot))
+
 def theme():
     st.html("""<style>
     :root {--cyan:#37e7dc;--ink:#07121d;--muted:#94aabd}
@@ -21,6 +33,7 @@ def theme():
     [data-testid="stMainBlockContainer"] {padding:2.3rem 2rem 3rem;max-width:1600px}
     [data-testid="stSidebar"] {background:linear-gradient(165deg,#0b1c29,#07111a 75%);border-right:1px solid #203c4e}
     [data-testid="stSidebar"] h1 {font-size:1.4rem;letter-spacing:-.04em}
+    .sl-brand{padding:4px 0 0;margin-bottom:0}.sl-brand-lockup{display:flex;align-items:center;gap:13px;padding:3px 0 18px}.sl-brand-mark{width:57px;height:59px;flex:0 0 57px;display:grid;place-items:center;border:1.5px solid #26ddcf;border-radius:17px;background:radial-gradient(ellipse at 80% 100%,#00cbbb45,transparent 65%),linear-gradient(145deg,#103942,#071a27);box-shadow:0 0 22px #03cfc325,inset 0 0 12px #1dd7cc18;font-size:35px;line-height:1}.sl-brand-copy{min-width:0}.sl-brand-name{font-size:2rem;font-weight:850;letter-spacing:-.055em;color:#f3f8fc;line-height:1.12}.sl-brand-tagline{font-size:.5rem;letter-spacing:.19em;font-weight:650;color:#9ebdce;margin-top:8px;line-height:1.5}.sl-brand-rule{height:1px;background:linear-gradient(90deg,#254251,#3ccebd,#254251);opacity:.8}.sl-league{padding:15px 0 2px}.sl-league-label{display:inline-flex;gap:7px;align-items:center;font-size:.55rem;font-weight:650;letter-spacing:.19em;color:#9ebfce;background:#12303c;border-radius:20px;padding:4px 9px;margin-bottom:9px}.sl-league-label span{width:6px;height:6px;background:#3ae0c4;border-radius:50%;box-shadow:0 0 8px #36d9c655}.sl-league-context{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}.sl-league-name{font-size:1.13rem;font-weight:750;letter-spacing:-.025em;color:#eaf5fa;line-height:1.4;overflow-wrap:anywhere;min-width:0}.sl-format{color:#52decc;border:1px solid #2c998e;border-radius:20px;font-size:.55rem;letter-spacing:.1em;font-weight:700;padding:4px 8px;white-space:nowrap}
     [data-testid="stSidebar"] [role="radiogroup"] {gap:5px;margin:18px 0 24px}
     [data-testid="stSidebar"] [role="radiogroup"] label {padding:10px 12px;border:1px solid transparent;border-radius:10px;width:100%;transition:background .15s}
     [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {background:linear-gradient(100deg,#087c80aa,#133044);border-color:#36dbd878;box-shadow:inset 3px 0 #39eee0}

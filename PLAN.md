@@ -1,4 +1,4 @@
-# Fantasy Football AI Agent — five-phase delivery plan
+# Sideline — five-phase delivery plan
 
 Updated November 20, 2026. Extend the existing application; real APIs and data
 are the production path. Test fixtures stay under `tests/`.

@@ -1,6 +1,6 @@
-# Fantasy Analyst
+# Sideline
 
-A personal fantasy football analyst using your real Sleeper league, league-specific
+Sideline is a personal fantasy football analyst using your real Sleeper league, league-specific
 Python calculations, public nflverse statistics, Gemini reasoning and Tavily news.
 No local AI inference or paid infrastructure is required.
 
