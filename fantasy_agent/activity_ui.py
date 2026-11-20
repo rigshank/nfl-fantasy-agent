@@ -58,7 +58,7 @@ def render_activity(snapshot):
     for field,title in sections:
         unavailable=any(w.startswith(field+' unavailable') for w in snapshot.warnings)
         records=activity_records(snapshot,field,query)
-        with st.expander(f'{title} · {"Unavailable" if unavailable else str(len(records))+" matches"}',expanded=bool(query)):
+        with st.expander(f'{title} · {"Unavailable" if unavailable else str(len(records))+" records"}',expanded=bool(query)):
             if unavailable:
                 st.warning('Unavailable on the last refresh. Refresh league to retry; this is not a confirmed empty history.')
                 continue
@@ -73,6 +73,5 @@ def render_activity(snapshot):
                     if summary:
                         st.markdown('**Activity summary**')
                         st.html(fields_html(summary))
-                    st.markdown('**Complete reported details**')
-                    st.html(fields_html(rows))
+                    st.html('<details><summary style="cursor:pointer;color:#65dcd2;font-size:.8rem;padding:12px 0">All reported fields · '+str(len(rows))+'</summary>'+fields_html(rows)+'</details>')
     st.caption('Transactions cover the selected week. Traded-pick and draft metadata do not establish a complete historical log, draft selections or future-pick inventory. Reported pending or failed transactions are not treated as completed moves.')
