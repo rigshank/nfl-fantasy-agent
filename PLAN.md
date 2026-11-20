@@ -67,7 +67,7 @@ is a disposable TTL cache and actual usage ledger, with no workers or external D
 
 The configured key verified `gemini-4-hydrogen` and `gemini-3.8-flash` metadata.
 Auto prefers Hydrogen; only documented accessible free-tier text models are
-eligible. Availability fallback occurs before a signed tool conversation; quota
+eligible. Availability fallback restarts a fresh transcript with completed evidence and no cross-model signatures; quota
 exhaustion never causes model hopping. Actual context and rate limits apply.
 High reasoning uses no custom output/thinking allowance. Tavily's actual free
 Researcher plan/remaining credits are checked before uncached searches.

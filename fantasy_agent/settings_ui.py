@@ -20,14 +20,16 @@ def render_settings(snapshot,service,config,store):
         if submitted:
             st.session_state["analysis_options"]={"gemini_model":model,"gemini_thinking_level":level}
             st.rerun()
-        st.caption("These session preferences do not edit your secrets. Auto prefers the strongest documented free model available; no paid fallback, output-token cap or custom token budget is enabled.")
+        st.caption("These session preferences do not edit your secrets. Auto checks seven documented free text models, preferring quality; recently overloaded models cool down for two minutes; no paid fallback, output-token cap or custom token budget is enabled.")
     with connections:
         st.write("Gemini key:","Configured" if config.gemini_api_key.get_secret_value() else "Missing")
         st.write("Tavily key:","Configured" if config.tavily_api_key.get_secret_value() else "Missing")
         if st.button("Verify Gemini model access"):
             try:
-                model=Gemini(config,store).check_model()
+                selector=Gemini(config,store)
+                model=selector.check_model()
                 st.success("Model metadata access verified: "+model)
+                if selector.model_notice:st.info(selector.model_notice)
                 st.caption("This verifies model access, not current generation capacity or account billing status.")
             except ProviderUnavailable as exc:st.error(str(exc))
         if st.button("Check Tavily free allowance"):

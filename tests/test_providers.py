@@ -150,3 +150,54 @@ def test_research_many_deduplicates_queries(config,store):
     search=Mock();search.search.return_value={"results":[]}
     Research(config,store,search,usage_client()).search_many(["role","role","injury"])
     assert search.search.call_count==2
+
+
+def test_overload_uses_third_model_and_cooldown_survives_new_instance(config,store):
+    client=gemini_client()
+    class Busy(Exception):code=503
+    good=client.models.generate_content.return_value
+    client.models.generate_content.side_effect=[Busy("high demand"),Busy("high demand"),good]
+    answer=Gemini(config,store,client).answer({},"question",[])
+    assert "fallback gemini-3.6-flash" in answer
+    fresh=Gemini(config,store,gemini_client())
+    assert fresh.check_model()=="gemini-3.6-flash"
+    with store.db() as db:db.execute("UPDATE cache SET expires=0 WHERE key LIKE 'model-health:%'")
+    assert Gemini(config,store,gemini_client()).check_model()=="gemini-4-hydrogen"
+
+
+def test_metadata_timeout_tries_next_free_model_but_auth_stops(config,store):
+    client=gemini_client()
+    class Unavailable(Exception):code=504
+    client.models.get.side_effect=[Unavailable("timeout"),client.models.get.return_value]
+    assert Gemini(config,store,client).check_model()=="gemini-3.8-flash"
+    class Auth(Exception):code=403
+    with store.db() as db:db.execute("DELETE FROM cache")
+    client=gemini_client();client.models.get.side_effect=Auth("invalid key")
+    with pytest.raises(ProviderUnavailable,match="invalid key"):
+        Gemini(config,store,client).check_model()
+    assert client.models.get.call_count==1
+
+
+def test_free_registry_excludes_paid_alias_and_deprecated_reroutes():
+    from fantasy_agent.integrations.gemini import FREE_MODELS
+    assert len(FREE_MODELS)==7
+    assert {'gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-2.5-flash-lite'}<=set(FREE_MODELS)
+    assert not {'gemini-4-carbon','gemini-pro-latest','gemini-2.5-pro','gemini-2.5-flash'}&set(FREE_MODELS)
+
+
+def test_transport_timeout_in_context_check_uses_free_fallback(config,store):
+    client=gemini_client()
+    client.models.count_tokens.side_effect=[httpx.ReadTimeout("read timed out"),SimpleNamespace(total_tokens=500)]
+    answer=Gemini(config,store,client).answer({},"question",[])
+    assert "fallback gemini-3.8-flash" in answer
+    assert client.models.generate_content.call_count==1
+
+
+def test_all_overloaded_models_report_temporary_failure(config,store):
+    from fantasy_agent.integrations.gemini import FREE_MODELS
+    client=gemini_client()
+    class Busy(Exception):code=503
+    client.models.generate_content.side_effect=Busy("high demand")
+    with pytest.raises(ProviderUnavailable,match="Temporary high-demand"):
+        Gemini(config,store,client).answer({},"question",[])
+    assert [c.kwargs['model'] for c in client.models.generate_content.call_args_list]==list(FREE_MODELS)

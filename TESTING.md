@@ -99,3 +99,19 @@ verify the hosted health, league, eight pages and a sourced AI response.
 Remaining limits: forecast calibration, late inactive/postponement feeds, rare
 specialist scoring, complete future picks/keeper economics, and the external
 Gemini/hosted checks above. No automated trade, waiver or lineup submission.
+
+## Model selection reliability update
+
+November 20: expanded the verified free text registry to seven exact model IDs;
+added per-key transient-overload cooldowns, metadata/generation availability
+fallbacks and fresh-transcript recovery using completed tool evidence.
+Authentication and quota errors do not trigger model hopping. Official pricing
+was rechecked; paid models, moving aliases and deprecated rerouting IDs remain
+excluded. Real gemini-3.5-flash-lite agent execution called get_league and correctly
+reported the configured dynasty league and ten teams. This verifies focused tool
+calling on the fallback, not broad recommendation quality or universal uptime.
+
+Validation: 144 full-suite tests passed in 60.40 seconds. After adding two further
+timeout/exhausted-pool cases, all 35 provider/agent tests passed in 8.62 seconds.
+Compilation and git diff --check passed. The local reliability changes await
+user approval before GitHub publication and hosted rollout.

@@ -72,10 +72,17 @@ See `.env.example` and `.streamlit/secrets.toml.example`. Main variables:
 | `CACHE_PATH` | Relative disposable cache path; `.cache/fantasy.sqlite3` |
 | `LEAGUE_CACHE_SECONDS` / `STATS_CACHE_SECONDS` | Data freshness settings |
 
-`auto` prefers `gemini-4-hydrogen`; `gemini-3.8-flash` is the verified free fallback.
+`auto` prefers `gemini-4-hydrogen`, then tries `gemini-3.8-flash`,
+`gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`,
+`gemini-3-flash-preview` and `gemini-2.5-flash-lite`. These exact IDs have documented
+free standard text input/output pricing and are checked against the configured key.
+Moving aliases, media-only models and deprecated automatic reroutes are excluded.
 Model metadata access is checked against the key. Repeated model-unavailable
-responses can fall back before tool execution; quota exhaustion never causes
-model hopping. Signed in-flight tool conversations keep their model. There are
+responses, timeouts and connection failures can select another eligible model;
+quota exhaustion and authentication errors never cause model hopping. Overloaded
+models cool down for two minutes across requests, then become eligible again.
+After a tool-stage failure, the replacement starts a fresh transcript containing
+completed evidence. Signatures and function-call IDs never cross models. There are
 no custom token/reasoning/output budgets or arbitrary research caps. Actual context
 limits, upstream minute-reset delays and free quotas are respected.
 

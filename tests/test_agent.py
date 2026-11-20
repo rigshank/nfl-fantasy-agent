@@ -173,3 +173,20 @@ def test_shared_waivers_and_lineup_tools(config,store):
     result=tools.call("optimize_lineup",{"week":s.week+1})
     assert "error" not in result,result
     assert result["result"]["week"]==s.week+1
+
+
+def test_mid_tool_overload_restarts_without_signatures_and_keeps_evidence(config,store):
+    client=gemini_client()
+    class Busy(Exception):code=503
+    signed=model_response([types.Part(function_call=types.FunctionCall(name="get_league",args={},id="signed-call"),thought_signature=b"signature")])
+    client.models.generate_content.side_effect=[signed]+[Busy("high demand")]*3+[model_response([types.Part(text="Recovered answer")])]
+    dispatcher=Mock();dispatcher.declarations.return_value=[];dispatcher.records=[]
+    dispatcher.call.return_value={"result":{"league_format":"dynasty"}}
+    with patch("fantasy_agent.integrations.gemini.time.sleep"):
+        answer=Gemini(config,store,client).run_agent({},"Analyze",[],dispatcher)
+    assert "Recovered answer" in answer
+    sent=client.models.generate_content.call_args.kwargs
+    assert sent['model']=='gemini-3.8-flash'
+    assert 'dynasty' in str(sent['contents'])
+    assert all(not p.thought_signature and not p.function_call and not p.function_response for c in sent['contents'] for p in c.parts)
+    assert dispatcher.call.call_count==1
