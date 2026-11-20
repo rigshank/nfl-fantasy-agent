@@ -94,20 +94,36 @@ def overview(snapshot, roster):
     for col,title,page,run,items in zip(st.columns(3),["◇  Waiver shortlist","⇄  Trade opportunities","↗  Breakout watch"],
             ["Waiver Wire","Trade Finder","Breakout Radar"],[waivers,trades,breakouts],
             [waivers.pickups if waivers else [],trades.trades if trades else [],breakouts.signals if breakouts else []]):
-        with col,st.container(border=True):
+        with col,st.container(border=True,height="stretch" if page=="Trade Finder" else "content"):
             st.subheader(title)
             if run:
                 st.caption("Last analysis · "+local_time(run.snapshot_at))
                 for item in items[:3]:
                     if page=="Trade Finder":
-                        design.row(" + ".join(snapshot.players[p].name for p in item.receive),"Send: "+" + ".join(snapshot.players[p].name for p in item.send),f"{item.my_ros_gain:+.1f} ROS")
+                        opponent=next((r.manager for r in snapshot.rosters if r.roster_id==item.opponent_id),f"Roster {item.opponent_id}")
+                        design.row(" + ".join(snapshot.players[p].name for p in item.receive),"With "+opponent+" · Send: "+" + ".join(snapshot.players[p].name for p in item.send),f"{item.my_ros_gain:+.1f} ROS")
                     else:
                         player=snapshot.players[item.player_id]
                         detail=" / ".join(player.positions)+" · "+(player.team or "No NFL team")
                         design.row(player.name,detail,f"{item.ros_gain:+.1f} ROS" if page=="Waiver Wire" else f"{item.score:.0f} signal")
                 if not items:st.caption("No qualifying results in this analysis.")
+                if page=="Trade Finder" and items:
+                    st.caption(f"{len(items)} ranked offers · ROS gains are model estimates, not guaranteed outcomes. Review opponent gains, confidence and required drops in Trade Finder.")
+            elif page=="Trade Finder":
+                st.caption("No trade analysis yet · Current roster context")
+                bench=owned(roster)-set(roster.starters+roster.reserve+roster.taxi)
+                bench_positions={}
+                for pid in bench:
+                    position=" / ".join(snapshot.players[pid].positions) or "Unknown"
+                    bench_positions[position]=bench_positions.get(position,0)+1
+                breakdown=" · ".join(f"{n} {p}" for p,n in sorted(bench_positions.items())) or "No bench players outside IR / taxi"
+                design.row("League market",snapshot.league_type.title()+" · Actual opponent rosters",f"{max(0,len(snapshot.rosters)-1)} opponents")
+                design.row("Your bench",breakdown,f"{len(bench)} players")
+                design.row("Explore consolidation","Compare 2-for-1 packages for starter upgrades. Player eligibility and both teams’ gains are checked in Trade Finder.","2-for-1")
+                st.caption("Roster counts describe depth, not trade value. No offers or player targets have been generated yet.")
             else:
                 st.html('<div class="ff-empty">Your shortlist appears after analysis. Open this workspace to find evidence-backed opportunities.</div>')
+            if page=="Trade Finder":st.space("stretch")
             design.link("Open "+page+" →",page,"overview_"+page)
     with st.container(border=True):
         st.subheader("♜  League standings")
