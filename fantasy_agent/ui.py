@@ -64,6 +64,7 @@ def overview(snapshot, roster):
         st.subheader("◈  Roster depth")
         st.caption("Eligible positions · includes IR / taxi")
         if counts:
+            st.space("small")
             chart=alt.Chart(chart_data).mark_bar(cornerRadiusTopLeft=5,cornerRadiusTopRight=5,size=30).encode(
                 x=alt.X("Position:N",axis=alt.Axis(labelAngle=0,title=None)),y=alt.Y("Players:Q",axis=alt.Axis(tickMinStep=1,title=None)),
                 color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=None),tooltip=["Position","Players"])
@@ -78,11 +79,11 @@ def overview(snapshot, roster):
             donut=alt.Chart(chart_data).mark_arc(innerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 6) * 0.68"),outerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 6)"),cornerRadius=3).encode(theta="Players:Q",color=alt.Color("Position:N",scale=alt.Scale(domain=positions,range=colors),legend=None),tooltip=["Position","Players"])
             st.altair_chart(donut.properties(height=180).configure(background="transparent"),width="stretch",theme=None)
             st.html('<div class="ff-mix-legend">'+''.join(f'<span><i style="background:{colors[i%len(colors)]}"></i>{escape(p)}</span>' for i,p in enumerate(positions))+'</div>')
-    with right, st.container(key="overview_next_moves",gap="small"):
+    with right:
         st.subheader("↗  Your next moves")
         empty=roster.starters.count("0")
-        st.html(f'<div class="ff-row"><div><b>Saved lineup</b><small>{str(empty)+" empty slots" if empty else "All starter slots filled"}</small></div><span class="ff-pill">{"Review" if empty else "Filled"}</span></div>'
-                + f'<div class="ff-row"><div><b>Roster availability</b><small>{len(roster.reserve)} IR · {len(roster.taxi)} taxi</small></div><span class="ff-pill">{sum(bool(snapshot.players[p].injury_status) for p in owned(roster))} flags</span></div>')
+        design.row("Saved lineup",f"{empty} empty slots" if empty else "All starter slots filled", "Review" if empty else "Filled")
+        design.row("Roster availability",f"{len(roster.reserve)} IR · {len(roster.taxi)} taxi",f"{sum(bool(snapshot.players[p].injury_status) for p in owned(roster))} flags")
         design.link("Optimize this week →","Lineup Optimizer","overview_lineup")
         def ask_strategy():
             st.session_state["workspace"]="AI Analyst"
