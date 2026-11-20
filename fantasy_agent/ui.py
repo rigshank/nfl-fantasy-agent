@@ -43,15 +43,9 @@ def roster_view(snapshot, roster):
             else:st.caption("No players in this group.")
 
 
-def standings(snapshot):
-    rows = []
-    for r in snapshot.rosters:
-        s = r.settings
-        rows.append({"Team": r.manager, "Wins": s.get("wins", 0), "Losses": s.get("losses", 0),
-                     "Ties": s.get("ties", 0), "Points for": s.get("fpts", 0) + s.get("fpts_decimal", 0) / 100})
-    st.dataframe(pd.DataFrame(rows).sort_values(["Wins", "Points for"], ascending=False),
-                 hide_index=True, width="stretch")
-    st.caption("Record table sorted by wins, then points; custom standings and playoff tiebreakers are not modeled.")
+def standings(snapshot, selected_id=None):
+    from .standings_ui import render_standings
+    render_standings(snapshot, selected_id)
 
 
 def overview(snapshot, roster):
@@ -111,7 +105,7 @@ def overview(snapshot, roster):
             design.link("Open "+page+" →",page,"overview_"+page)
     with st.container(border=True):
         st.subheader("♜  League standings")
-        standings(snapshot)
+        standings(snapshot, roster.roster_id)
 
 
 def league_view(snapshot):
