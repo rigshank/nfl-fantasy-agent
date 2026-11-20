@@ -28,6 +28,8 @@ league ID, select a league and choose your team. No Sleeper password is needed.
   draft metadata and traded-pick records.
 - **Trade Finder:** all eligible players, legal packages, required drops, exact
   both-team offensive lineup gains, replacement costs and dated dynasty values.
+  The outgoing picker is checked against current evaluation eligibility; excluded
+  players have named reasons. It defaults to 2-for-1, with all structures available.
   Balance/confidence are heuristics, never acceptance probabilities. Larger trade
   structures take longer; no player shortlist or candidate-count cap is applied.
 - **Waiver Wire:** specific pickup/drop alternatives, protections, roster fit,

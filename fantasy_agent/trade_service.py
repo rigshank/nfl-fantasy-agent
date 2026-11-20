@@ -15,6 +15,15 @@ class TradeService:
         self.config, self.store, self.league_service = config, store, league_service
         self.data_client = data_client or NFLVerse(config, store)
 
+    def eligibility(self,snapshot,roster_id):
+        fresh=self.league_service.load(snapshot.league_id,force=True)
+        data=self.data_client.load(int(fresh.season),dynasty=fresh.league_type=="dynasty",scoring_rules=fresh.scoring)
+        engine=TradeEngine(fresh,data,self.config,end_week=max(17,fresh.week+1))
+        if roster_id not in engine.rosters:raise ValueError("Selected roster is not in this league.")
+        return fresh,{"eligible":engine.candidate_pool(roster_id),
+            "excluded":{p:engine.exclusion_reasons(roster_id,p) for p in engine.rosters[roster_id].players+engine.rosters[roster_id].reserve+engine.rosters[roster_id].taxi if engine.exclusion_reasons(roster_id,p)},
+            "checked_at":fresh.refreshed_at,"fingerprint":analysis_fingerprint(fresh)}
+
     def find(self, snapshot, roster_id, options, start_week=None, end_week=17, refresh_stats=False):
         fresh = self.league_service.load(snapshot.league_id, force=True)
         run=self.analyze(fresh,roster_id,options,start_week,end_week,refresh_stats)

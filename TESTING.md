@@ -115,3 +115,16 @@ Validation: 144 full-suite tests passed in 60.40 seconds. After adding two furth
 timeout/exhausted-pool cases, all 35 provider/agent tests passed in 8.62 seconds.
 Compilation and git diff --check passed. The local reliability changes await
 user approval before GitHub publication and hosted rollout.
+
+## Trade picker correction
+
+The outgoing picker previously listed active-roster offensive players without
+checking the discovery engine's statistical/availability/market requirements.
+It now shares the engine candidate pool and discloses named exclusions before
+selection. Invalid/stale required picks are still rejected with specific reasons;
+they are never silently dropped. Oversized required packages get a recovery action.
+Real configured roster check: 15 eligible, 8 excluded; 3,009 2-for-1 packages
+returned 9 ranked trades, all with verified ownership. No injury return dates or
+missing values were fabricated. Default search is 2-for-1; all structures remain.
+
+Final regression: 150 tests passed in 68.86 seconds; compilation and diff checks passed.

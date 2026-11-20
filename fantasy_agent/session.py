@@ -1,5 +1,5 @@
 """Clear only dependent UI state when league/team/rules change."""
-ANALYSIS_KEYS=("waiver_run","waiver_snapshot","waiver_answers","waiver_identity",
+ANALYSIS_KEYS=("trade_eligibility","trade_eligibility_identity","waiver_run","waiver_snapshot","waiver_answers","waiver_identity",
     "trade_run","trade_snapshot","trade_explanations","trade_history","trade_identity",
     "lineup_report","lineup_identity","breakout_run","breakout_identity")
 

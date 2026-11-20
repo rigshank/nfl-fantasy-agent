@@ -1,6 +1,7 @@
 """Trade Finder extension using the dashboard's existing cards and tables."""
 import streamlit as st
 from .analysis import owned
+from .service import analysis_fingerprint
 from .evaluation import OFFENSE
 from .integrations.research import ProviderUnavailable
 from .integrations.sleeper import DataUnavailable
@@ -31,17 +32,39 @@ def render_trade_finder(snapshot, roster_id, league_service, config, store):
     if snapshot.week >= 18:
         st.info("No future regular-season weeks remain for this trade model.")
         return
+    service = TradeService(config, store, league_service)
+    identity = (snapshot.league_id, roster_id)
+    readiness=st.session_state.get("trade_eligibility")
+    if (not readiness or st.session_state.get("trade_eligibility_identity")!=identity or
+        (utcnow()-readiness["checked_at"]).total_seconds()>config.league_cache_seconds or
+        readiness["fingerprint"]!=analysis_fingerprint(snapshot)):
+        try:
+            with st.spinner("Checking outgoing players against live rosters, availability and statistical evidence..."):
+                snapshot,readiness=service.eligibility(snapshot,roster_id)
+            st.session_state.update(snapshot=snapshot,trade_eligibility=readiness,trade_eligibility_identity=identity)
+        except (DataUnavailable,ProviderUnavailable,BudgetExceeded,ValueError) as exc:
+            st.error("Player eligibility check failed: "+str(exc))
+            if st.button("Retry player eligibility"):
+                st.session_state.pop("trade_eligibility",None);st.rerun()
+            return
     roster = next(r for r in snapshot.rosters if r.roster_id == roster_id)
     opponent_names = {r.roster_id: r.manager for r in snapshot.rosters if r.roster_id != roster_id}
-    available = sorted(p for p in owned(roster) - set(roster.reserve + roster.taxi) if OFFENSE.intersection(snapshot.players[p].positions))
+    available = sorted(readiness["eligible"],key=lambda p:snapshot.players[p].name)
+    st.caption(f"{len(available)} outgoing players have evidence for numerical trade discovery. Leave the selection empty to search all eligible players.")
+    with st.expander(f"Players outside this trade model · {len(readiness['excluded'])}"):
+        st.caption("These players may still be tradable in Sleeper. This model cannot responsibly rank them with the current evidence or roster assignment.")
+        st.dataframe([{"Player":snapshot.players[p].name,"Why excluded":"; ".join(reasons)} for p,reasons in readiness["excluded"].items()],hide_index=True,width="stretch")
+    if not available:
+        st.info("No outgoing players currently meet the trade model's evidence requirements. Refresh league/statistics or inspect the exclusions above.")
+        return
     with st.form("trade_filters"):
         a, b, c = st.columns(3)
         position = a.selectbox("Position to acquire", ["Any", "QB", "RB", "WR", "TE"])
-        structure = b.selectbox("Trade structure", list(STRUCTURES), index=0)
+        structure = b.selectbox("Trade structure", list(STRUCTURES), index=2)
         opponent = c.selectbox("Trading partner", [None] + list(opponent_names),
                                format_func=lambda x: "All opponents" if x is None else opponent_names[x])
         must_send = st.multiselect("Players I want to trade away (all selected must be included)", available,
-                                   format_func=lambda pid: snapshot.players[pid].name)
+                                   format_func=lambda pid: snapshot.players[pid].name,key=f"trade_outgoing_{snapshot.league_id}_{roster_id}")
         d, e = st.columns(2)
         start = d.number_input("First forecast week", min_value=snapshot.week + 1, max_value=18, value=snapshot.week + 1)
         end = e.number_input("Last fantasy week", min_value=snapshot.week + 1, max_value=18, value=max(snapshot.week + 1, 17))
@@ -77,9 +100,10 @@ def render_trade_finder(snapshot, roster_id, league_service, config, store):
         except (DataUnavailable, ProviderUnavailable, BudgetExceeded, ValueError) as exc:
             st.error(f"Trade discovery stopped: {exc}")
             st.session_state.pop("trade_run", None)
+            st.session_state.pop("trade_eligibility",None)
     run = st.session_state.get("trade_run")
     if not run:
-        st.info("Choose filters, then Find Best Trades. Statistics are fetched only on request; AI/search credits are not needed.")
+        st.info("Choose filters, then Find Best Trades. Player eligibility is checked before selection; AI/search credits are not needed.")
         return
     a,b,c=st.columns(3)
     a.metric("Packages evaluated",f"{run.candidates_evaluated:,}")

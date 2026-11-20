@@ -70,3 +70,15 @@ def test_changed_ownership_prevents_outdated_explanation(config, store):
         with pytest.raises(ValueError):
             TradeService(config, store, league).explain(s, run, run.trades[0], "Why?")
         gemini.assert_not_called()
+
+
+def test_eligibility_picker_matches_engine_and_discloses_exclusions(config,store):
+    s,data,_=live_fixture(config)
+    league=Mock();league.load.return_value=s
+    client=Mock();client.load.return_value=data
+    fresh,ready=TradeService(config,store,league,client).eligibility(s,1)
+    engine=TradeEngine(fresh,data,config)
+    assert ready['eligible']==engine.candidate_pool(1)
+    assert set(ready['eligible']).isdisjoint(ready['excluded'])
+    assert all(ready['excluded'].values())
+    assert set(ready['eligible'])|set(ready['excluded'])==set(s.rosters[0].players+s.rosters[0].reserve+s.rosters[0].taxi)

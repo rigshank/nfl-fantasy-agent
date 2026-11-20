@@ -225,6 +225,28 @@ class TradeEngine:
             rank_score=rank, confidence="low" if low else "medium", my_after=self.lineup(my_after, self.start),
             opponent_after=self.lineup(opp_after, self.start), reasons=reasons, risks=risks)
 
+    def exclusion_reasons(self,rid,pid):
+        roster=self.rosters[rid]
+        player=self.snapshot.players.get(pid)
+        if pid not in owned(roster):return ["not owned by this team"]
+        reasons=[]
+        if pid in roster.reserve:reasons.append("assigned to injured reserve")
+        if pid in roster.taxi:reasons.append("assigned to taxi squad")
+        if not player or not OFFENSE.intersection(player.positions):reasons.append("not a supported offensive trade position")
+        value=self.values.get(pid)
+        if value is None:reasons.append("no trustworthy ID-mapped statistical evaluation under league scoring")
+        else:
+            if not value.available:
+                status=(player.injury_status or player.status) if player else None
+                reasons.append("forecast availability/role unverified"+(f" (catalog: {status})" if status else ""))
+                reasons.extend(x for x in value.limitations if "appearance" in x or "availability/role" in x)
+            if value.games<3:reasons.append(f"only {value.games} verified games; trade comparison requires at least 3")
+            if self.asset(pid) is None:reasons.append("missing current dynasty market evidence" if self.dynasty else "missing replacement-value evidence")
+        return reasons
+
+    def candidate_pool(self,rid):
+        return sorted((p for p in owned(self.rosters[rid]) if not self.exclusion_reasons(rid,p)),key=lambda p:(-self.asset(p),p))
+
     def discover(self, my_id, options=None):
         options = options or TradeOptions()
         if my_id not in self.rosters:
@@ -233,19 +255,19 @@ class TradeEngine:
             raise DataUnavailable("Your team lacks sufficient trustworthy starter data or has an invalid active roster. Review the team-needs matrix.")
         if not set(options.must_send) <= owned(self.rosters[my_id]):
             raise ValueError("Selected outgoing player is not owned by your team.")
-        def pool(rid):
-            ids = [p for p in active_offense(self.snapshot, self.rosters[rid]) if p in self.values and self.values[p].available and self.values[p].games >= 3 and self.asset(p) is not None]
-            ids.sort(key=lambda p: (-self.asset(p), p))
-            return ids
-        mine = pool(my_id)
-        if not set(options.must_send) <= set(mine):
-            raise DataUnavailable("Selected outgoing player has insufficient evidence, an unavailable status, or is on IR/taxi.")
+        mine = self.candidate_pool(my_id)
+        invalid=set(options.must_send)-set(mine)
+        if invalid:
+            details="; ".join(self.snapshot.players[p].name+": "+", ".join(self.exclusion_reasons(my_id,p)) for p in sorted(invalid))
+            raise DataUnavailable("Cannot include selected outgoing players: "+details+". Remove these selections or refresh the evidence. Other eligible players can still be searched.")
+        if options.must_send and not any(len(options.must_send)<=n for n,_ in options.structures):
+            raise ValueError("Selected outgoing players exceed every chosen trade structure. Select fewer players or choose a larger outgoing package.")
         trades, evaluated = [], 0
         for report in self.reports:
             rid = report.roster_id
             if rid == my_id or not report.eligible_partner or (options.opponent_id is not None and rid != options.opponent_id):
                 continue
-            theirs = pool(rid)
+            theirs = self.candidate_pool(rid)
             for n_send, n_receive in options.structures:
                 if not 1 <= n_send <= 3 or not 1 <= n_receive <= 3:
                     raise ValueError("Automatic trade structures support one to three players per side.")

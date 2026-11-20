@@ -83,3 +83,20 @@ def test_connection_failure_shows_actual_error_without_fake_data(tmp_path):
         assert not app.exception
         assert "503" in app.error[0].value
         assert "snapshot" not in app.session_state
+
+
+def test_trade_picker_only_offers_evaluated_players_and_search_completes(tmp_path):
+    from fantasy_agent.trades import TradeEngine
+    c=Config(cache_path=tmp_path/"trade-ui.sqlite3");s,d=trade_demo();s.league_type="redraft"
+    with patch("fantasy_agent.config.Config.load",return_value=c), \
+         patch("fantasy_agent.service.LeagueService.load",return_value=s), \
+         patch("fantasy_agent.integrations.nflverse.NFLVerse.load",return_value=d):
+        app=boot(c,s)
+        app.sidebar.radio[0].set_value("Trade Finder").run(timeout=30)
+        assert not app.exception
+        ready=app.session_state['trade_eligibility']
+        assert ready['eligible']==TradeEngine(s,d,c).candidate_pool(1)
+        assert next(x for x in app.selectbox if x.label=='Trade structure').value=='2-for-1'
+        next(b for b in app.button if b.label=='Find Best Trades').click().run(timeout=30)
+        assert not app.exception and not app.error
+        assert app.session_state['trade_run'].candidates_evaluated>0

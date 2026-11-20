@@ -129,3 +129,22 @@ def test_search_has_no_arbitrary_candidate_cap(config):
     run = TradeEngine(s, d, config).discover(1)
     assert run.candidates_evaluated > 50
     assert not any("Bounded" in warning for warning in run.warnings)
+
+
+def test_outgoing_pool_and_named_rejection_share_eligibility(scenario):
+    engine=scenario
+    pid=engine.candidate_pool(1)[0]
+    engine.values[pid].available=False
+    assert pid not in engine.candidate_pool(1)
+    reason=engine.exclusion_reasons(1,pid)
+    assert any('availability' in r for r in reason)
+    with pytest.raises(DataUnavailable,match=engine.snapshot.players[pid].name):
+        engine.discover(1,TradeOptions(structures=[(2,1)],must_send=[pid]))
+    # An excluded optional player must not stop an unrestricted discovery.
+    assert engine.discover(1,TradeOptions(structures=[(2,1)])).candidates_evaluated>0
+
+
+def test_required_package_cannot_exceed_selected_structure(scenario):
+    ids=scenario.candidate_pool(1)[:2]
+    with pytest.raises(ValueError,match='Select fewer players'):
+        scenario.discover(1,TradeOptions(structures=[(1,1)],must_send=ids))
