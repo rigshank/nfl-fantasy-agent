@@ -1,5 +1,6 @@
 """Small Streamlit presentation components; no provider calls here."""
 from datetime import datetime
+from html import escape
 from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
@@ -71,15 +72,17 @@ def overview(snapshot, roster):
         st.subheader("◎  Positional mix")
         st.caption("Share of position eligibility")
         if counts:
-            # Vega's fit layout reserves room for the legend. Derive radii from
-            # the remaining plot area so narrow cards never clip a fixed arc.
-            donut=alt.Chart(chart_data).mark_arc(innerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 8) * 0.68"),outerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 8)"),cornerRadius=3).encode(theta="Players:Q",color=alt.Color("Position:N",scale=alt.Scale(range=colors),legend=alt.Legend(orient="bottom",title=None,columns=4)),tooltip=["Position","Players"])
-            st.altair_chart(donut.properties(height=200).configure(background="transparent").configure_legend(labelColor="#a6bdcc"),width="stretch",theme=None)
-    with right:
+            # Keep the legend outside Vega's fit layout so it cannot shrink or
+            # clip the circle, or leave a large blank band inside the chart.
+            positions=sorted(counts)
+            donut=alt.Chart(chart_data).mark_arc(innerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 6) * 0.68"),outerRadius=alt.ExprRef(expr="max(0, min(width, height) / 2 - 6)"),cornerRadius=3).encode(theta="Players:Q",color=alt.Color("Position:N",scale=alt.Scale(domain=positions,range=colors),legend=None),tooltip=["Position","Players"])
+            st.altair_chart(donut.properties(height=180).configure(background="transparent"),width="stretch",theme=None)
+            st.html('<div class="ff-mix-legend">'+''.join(f'<span><i style="background:{colors[i%len(colors)]}"></i>{escape(p)}</span>' for i,p in enumerate(positions))+'</div>')
+    with right, st.container(key="overview_next_moves",gap="small"):
         st.subheader("↗  Your next moves")
         empty=roster.starters.count("0")
-        design.row("Saved lineup",f"{empty} empty slots" if empty else "All starter slots filled", "Review" if empty else "Filled")
-        design.row("Roster availability",f"{len(roster.reserve)} IR · {len(roster.taxi)} taxi",f"{sum(bool(snapshot.players[p].injury_status) for p in owned(roster))} flags")
+        st.html(f'<div class="ff-row"><div><b>Saved lineup</b><small>{str(empty)+" empty slots" if empty else "All starter slots filled"}</small></div><span class="ff-pill">{"Review" if empty else "Filled"}</span></div>'
+                + f'<div class="ff-row"><div><b>Roster availability</b><small>{len(roster.reserve)} IR · {len(roster.taxi)} taxi</small></div><span class="ff-pill">{sum(bool(snapshot.players[p].injury_status) for p in owned(roster))} flags</span></div>')
         design.link("Optimize this week →","Lineup Optimizer","overview_lineup")
         def ask_strategy():
             st.session_state["workspace"]="AI Analyst"

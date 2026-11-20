@@ -63,6 +63,7 @@ def theme():
     .ff-kicker {color:#4bded7;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;margin:5px 0 12px}
     .ff-row {padding:12px 0;border-bottom:1px solid #254150;display:flex;justify-content:space-between;gap:14px;align-items:center}
     .ff-row:last-child {border-bottom:0}.ff-row b {font-size:.86rem}.ff-row small {display:block;color:#91aabc;font-size:.72rem;margin-top:3px}.ff-pill {font-size:.72rem;color:#58ecce;background:#124138;border:1px solid #226655;border-radius:6px;padding:4px 8px;white-space:nowrap}
+    .st-key-overview_next_moves{gap:8px}.st-key-overview_next_moves .ff-row{padding:8px 0}.st-key-overview_next_moves button{min-height:36px;padding-top:5px;padding-bottom:5px}.ff-mix-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 12px;color:#a6bdcc;font-size:.72rem;line-height:1.4}.ff-mix-legend span{display:inline-flex;align-items:center;gap:5px}.ff-mix-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
     .ff-empty {color:#91aabc;font-size:.85rem;line-height:1.7;padding:14px 0;min-height:92px}
     @media(max-width:850px){[data-testid="stMainBlockContainer"]{padding:1.2rem}.ff-hero{padding:20px}.ff-hero h1{font-size:1.8rem}[data-testid="stMetric"]{padding:12px;min-height:95px}[data-testid="stMetricValue"]{font-size:1.5rem}}
     </style>""")
