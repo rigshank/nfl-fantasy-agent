@@ -86,7 +86,10 @@ Target: https://github.com/rigshank/nfl-fantasy-agent (initially empty).
 Secrets, caches and the virtual environment are excluded from Git. Source and
 staged-content scans check actual configured keys without printing them.
 The prepared private .streamlit/secrets.toml is ignored; only the blank example
-is publishable. Repository publication and CI results are recorded after push.
+is publishable. **67 staged files passed the credential scan with zero findings.**
+Application commit `6f73985` was pushed to main. The
+[Linux CI run](https://github.com/rigshank/nfl-fantasy-agent/actions/runs/44744807075)
+passed dependency installation, pip check, compilation and all automated tests.
 
 Streamlit Community Cloud currently requires user sign-in and acceptance of its
 terms. **No hosted app or hosted smoke check is claimed.** README contains exact
