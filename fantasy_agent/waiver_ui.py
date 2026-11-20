@@ -5,6 +5,7 @@ from .integrations.research import ProviderUnavailable
 from .integrations.sleeper import DataUnavailable
 from .storage import BudgetExceeded
 from .waiver_service import WaiverService
+from .waiver_cards import page, pickup_cards, signal_cards, render_player_evidence
 from . import ui
 
 
@@ -75,14 +76,10 @@ def render_waivers(snapshot, roster_id, league_service, config, store):
             st.caption(f"Retrieved {ui.local_time(source.retrieved_at)} · Source update: {source.source_updated_at or 'see source data dates'}")
     pickups = [p for p in run.pickups if position == "All" or run.evaluations[p.player_id].position == position]
     st.subheader("Ranked pickup / drop recommendations")
-    st.caption("Each row is an alternative single claim, not a sequence. Re-analyze after a successful roster move.")
+    st.caption("Each card is an alternative single claim, not a sequence. Re-analyze after a successful roster move. Headshots and injury labels use the dated Sleeper catalog.")
     if pickups:
-        st.dataframe([{"Pickup": _name(evidence,p.player_id), "Drop": _name(evidence,p.drop_id),
-            "Position": run.evaluations[p.player_id].position, "Type": p.kind, "Next-week lineup Δ": round(p.next_week_gain,2),
-            "ROS lineup Δ": round(p.ros_gain,2), "Bench surplus Δ": round(p.bench_change,2),
-            "Dynasty index Δ": p.dynasty_change, "Confidence": p.confidence,
-            "FAAB range (subjective)": "–".join(str(x) for x in p.faab["range"]) if p.faab.get("range") is not None else "Not established",
-            "Opportunity signal /100": p.breakout_score} for p in pickups], hide_index=True, width="stretch")
+        shown, offset = page(pickups, 'waiver_pickup_page', 'Recommendations')
+        st.html(pickup_cards(evidence, shown, offset))
     else:
         st.info("No supported pickup/drop improves the modeled roster with these filters and protections. The watch list below separates emerging opportunity from established upgrades.")
     st.subheader("Breakout opportunity watch")
@@ -92,15 +89,8 @@ def render_waivers(snapshot, roster_id, league_service, config, store):
                     or scope == "My team" and current.get(b.player_id) == roster_id)]
     st.caption("Signals use recent vs prior verified appearances, weighted opportunity, snaps, target share and red-zone work. Touchdowns/points do not increase the score. This is a heuristic ranking, not a probability.")
     if signals:
-        def metric(signal, name):
-            return next((m for m in signal.changes if m.metric == name), None)
-        st.dataframe([{"Player": _name(evidence,b.player_id), "Position": run.evaluations[b.player_id].position,
-            "Signal /100": b.score, "Evidence": b.label, "Confidence": b.confidence,
-            "Recent games": b.recent_games, "Prior games": b.prior_games,
-            "Recent opportunities/game": metric(b,"opportunities").recent,
-            "Prior opportunities/game": metric(b,"opportunities").prior,
-            "Snap-share change": metric(b,"snap_share").change,
-            "Why watch": " ".join(b.reasons)} for b in signals], hide_index=True, width="stretch")
+        shown, offset = page(signals, 'waiver_signal_page', 'Watch candidates')
+        st.html(signal_cards(evidence, shown, offset))
     else:
         st.caption("No positive opportunity signals meet this ownership/position filter.")
     candidates = list(dict.fromkeys([p.player_id for p in pickups] + [s.player_id for s in signals]))
@@ -110,7 +100,7 @@ def render_waivers(snapshot, roster_id, league_service, config, store):
         signal = next((s for s in signals if s.player_id == selected), None)
         value = run.evaluations[selected]
         with st.container(border=True):
-            st.subheader(_name(evidence,selected))
+            render_player_evidence(evidence, selected, value, signal)
             if pickup:
                 st.write(f"**Pickup:** {_name(evidence, selected)} · **Drop:** {_name(evidence,pickup.drop_id)}")
                 a,b,c = st.columns(3)
@@ -123,12 +113,6 @@ def render_waivers(snapshot, roster_id, league_service, config, store):
                     st.caption(risk)
                 st.caption("FAAB: "+pickup.faab.get("basis","No estimate available."))
                 if pickup.faab.get("limitation"):st.caption(pickup.faab["limitation"])
-            if signal:
-                st.dataframe([c.model_dump() for c in signal.changes], hide_index=True, width="stretch")
-                for warning in signal.limitations:
-                    st.caption(warning)
-            st.write(f"Observed season PPG: {value.season_ppg:.2f} · Recent PPG: {value.recent_ppg:.2f} · Forecast PPG: {value.projected_ppg:.2f} (uncalibrated)")
-            st.dataframe(value.weekly_observed, hide_index=True, width="stretch")
         question = st.text_input("Ask about this pickup or role change", placeholder="Is the opportunity sustainable? What current news changes this decision?")
         if st.button("Research and explain", width="stretch"):
             try:
