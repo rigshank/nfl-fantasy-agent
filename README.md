@@ -167,3 +167,13 @@ Official references: [Gemini pricing](https://aistudio.google.com/docs/pricing),
 [Sleeper API](https://docs.sleeper.com/),
 [nflverse](https://github.com/nflverse/nflverse-data), and
 [Community Cloud deployment](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy).
+
+## FantasyCalc companion
+
+Dynasty Trade Finder links to FantasyCalc's official calculator and prepares a
+copyable two-sided offer with actual league settings and separately identified
+required drops. It does not retrieve FantasyCalc values, recreate their fairness
+algorithm, or claim their approval. Their current data-use terms prohibit using
+values to create substitute calculators; automated value integration requires
+permission. No app credentials are needed for the companion. See
+https://fantasycalc.com/api-docs and https://fantasycalc.com/terms-of-usage.

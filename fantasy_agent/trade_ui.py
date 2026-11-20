@@ -10,6 +10,7 @@ from .storage import BudgetExceeded
 from .trade_models import TradeOptions
 from .trade_service import TradeService
 from . import ui
+from .fantasycalc_ui import render_reference
 
 
 STRUCTURES = {"All supported": [(1, 1), (2, 1), (2, 2), (3, 2), (1, 2), (2, 3)],
@@ -29,6 +30,7 @@ def _lineup_table(snapshot, lineup):
 def render_trade_finder(snapshot, roster_id, league_service, config, store):
     st.subheader("Find realistic trades")
     st.caption("Python compares both teams' optimal offensive lineups, roster depth and replacement costs. Gemini explanations are optional.")
+    if snapshot.league_type=="dynasty":render_reference(snapshot)
     if snapshot.week >= 18:
         st.info("No future regular-season weeks remain for this trade model.")
         return
@@ -178,6 +180,7 @@ def render_trade_finder(snapshot, roster_id, league_service, config, store):
             st.dataframe(_lineup_table(evidence_snapshot, trade.opponent_after), hide_index=True, width="stretch")
         for risk in trade.risks:
             st.caption(risk)
+    if snapshot.league_type=="dynasty":render_reference(evidence_snapshot,trade)
     with st.expander("Player comparison and observed evidence", expanded=True):
         st.dataframe([{"Player": evidence_snapshot.players[p].name, "ID": p, "Games": run.evaluations[p].games,
                        "Season PPG (observed)": round(run.evaluations[p].season_ppg, 2),
