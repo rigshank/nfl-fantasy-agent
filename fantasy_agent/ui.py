@@ -133,10 +133,8 @@ def league_view(snapshot):
         st.caption("Wins – losses – ties · Ordered by wins, then points for. Custom playoff tiebreakers are not modeled.")
         st.html(team_records(snapshot))
     with rules_tab:
-        st.write("Roster requirements",snapshot.roster_positions)
-        st.dataframe([{"Rule":k,"Points":v} for k,v in snapshot.scoring.items()],hide_index=True,width="stretch")
-        with st.expander("Complete league settings"):
-            st.json(snapshot.settings);st.json(snapshot.metadata)
+        from .rules_ui import render_rules
+        render_rules(snapshot)
     with activity_tab:
         for field,label in [("transactions","Weekly transactions"),("traded_picks","Traded draft picks"),("drafts","Draft metadata")]:
             with st.expander(label):
