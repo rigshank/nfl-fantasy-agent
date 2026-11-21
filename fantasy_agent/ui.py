@@ -196,10 +196,10 @@ def waivers(snapshot):
     player_table(snapshot, [p.player_id for p in filtered[(page - 1) * 100:page * 100]])
 
 
-def sources_view(bundle):
+def sources_view(bundle,expanded=True):
     if not bundle:
         return
-    with st.expander("Research evidence", expanded=True):
+    with st.expander("Research evidence", expanded=expanded):
         st.caption(f"Query: {bundle.query} · retrieved {local_time(bundle.retrieved_at)}")
         if not bundle.sources:
             st.warning("No sources returned; no current-news evidence was added.")

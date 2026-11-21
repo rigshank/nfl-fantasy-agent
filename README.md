@@ -48,7 +48,14 @@ league ID, select a league and choose your team. No Sleeper password is needed.
   You can exclude late inactives or other players from unlocked slots. An AI-added
   exclusion requires a retrieved source. Already-started starters stay locked.
 - **AI Analyst:** natural questions, follow-ups, tool progress, evidence tables,
-  dates and linked sources. Ask “Analyze my entire league and tell me the best
+  a dated conversation list on the left, and a spacious message composer. Chats
+  are saved per browser, league and team; reopening the analyst selects the chat
+  with the most recent message. Starting a new chat keeps earlier conversations.
+  Browsing history makes no model request; only the selected chat is sent as
+  follow-up context. The browser keeps an opaque local identifier, while messages
+  and supporting evidence are saved in SQLite. Persistence lasts as long as that
+  server database is retained; disposable hosting storage is not a durable backup.
+  Answers include dates and linked sources. Ask “Analyze my entire league and tell me the best
   moves I can make to improve my team.” The bundled strategy tool reuses one
   statistical evaluation across needs, trades, waivers and lineups, then Gemini
   can research relevant news. Focused questions use individual tools.

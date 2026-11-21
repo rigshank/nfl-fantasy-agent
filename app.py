@@ -153,6 +153,9 @@ if snapshot.warnings:
         for warning in snapshot.warnings:
             st.write(warning)
 
+if section != "AI Analyst":
+    st.session_state["analyst_page_open"]=False
+
 if section == "Overview":
     ui.overview(snapshot,roster)
 elif section == "My League":

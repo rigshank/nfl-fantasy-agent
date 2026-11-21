@@ -74,6 +74,19 @@ def theme():
     .ff-opportunity-note{color:#91aabc;font-size:.73rem;line-height:1.5;min-height:3.1em;margin:12px 0 0}
     [class*="st-key-overview_opportunity_"] [data-testid="stCaptionContainer"]{min-height:2.9em;font-size:.76rem;line-height:1.45}
     [class*="st-key-overview_opportunity_"].stVerticalBlock{gap:12px}
+    .st-key-analyst_history{background:linear-gradient(150deg,#102634,#091722)!important;border:1px solid #294b60!important;border-radius:16px!important;padding:18px!important}
+    .st-key-analyst_history button{justify-content:flex-start;text-align:left;border-radius:10px;min-height:46px}
+    .st-key-analyst_history button p{text-align:left;font-size:.8rem;line-height:1.4}
+    .st-key-analyst_history [data-testid="stCaptionContainer"]{font-size:.68rem;letter-spacing:.045em}
+    .st-key-analyst_composer{padding:14px 18px!important;gap:8px;border:1px solid #358d9a!important;border-radius:18px!important;background:linear-gradient(120deg,#113646,#102131)!important;box-shadow:0 8px 28px #0003,0 0 0 1px #39d6cc12}
+    .st-key-analyst_composer [data-testid="stChatInput"]{border:1px solid #345c70;border-radius:12px;background:#091e2d;box-shadow:none}
+    .st-key-analyst_composer [data-testid="stChatInput"]:focus-within{border-color:#49e3d4;box-shadow:0 0 0 3px #37e7dc16}
+    .st-key-analyst_composer textarea{font-size:.95rem!important;line-height:1.6!important;padding:14px!important;min-height:64px!important;background:transparent!important;border:0!important}
+    .st-key-analyst_composer button{background:#22bcb0;border:1px solid #59dfd2;border-radius:10px;color:#061e29}
+    .st-key-analyst_composer button:disabled{opacity:.35}
+    .st-key-analyst_composer [data-testid="stCaptionContainer"]{font-size:.7rem;color:#94b5c5}
+    .ff-composer-label{font-size:.66rem;font-weight:750;letter-spacing:.16em;color:#63e7d9}
+    .st-key-analyst_transcript [data-testid="stChatMessage"]{padding:18px;border-radius:14px;margin-bottom:10px}
     @media(max-width:850px){[data-testid="stMainBlockContainer"]{padding:1.2rem}.ff-hero{padding:20px}.ff-hero h1{font-size:1.8rem}[data-testid="stMetric"]{padding:12px;min-height:95px}[data-testid="stMetricValue"]{font-size:1.5rem}}
     </style>""")
 

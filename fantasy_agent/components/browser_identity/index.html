@@ -1,0 +1,24 @@
+<!doctype html><html><body><script>
+// A browser-local identifier keeps this public app's saved chats separated.
+let fallback = null;
+let lastId = null;
+window.addEventListener("message", event => {
+  if (event.source !== window.parent || event.data.type !== "streamlit:render") return;
+  let id;
+  try {
+    id = localStorage.getItem("sideline.analyst.browser");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("sideline.analyst.browser", id);
+    }
+  } catch (_) {
+    id = fallback || (fallback = event.data.args.fallback);
+  }
+  if (lastId !== id) {
+    lastId = id;
+    window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setComponentValue",value:id}, "*");
+  }
+  window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:0}, "*");
+});
+window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:componentReady",apiVersion:1}, "*");
+</script></body></html>

@@ -30,6 +30,7 @@ def test_setup_uses_no_demo_and_requests_only_sleeper_connection(tmp_path):
 def test_all_pages_use_real_data_interfaces_without_demo_toggle(tmp_path):
     c=Config(cache_path=tmp_path/"ui.sqlite3");s,d=trade_demo();s.league_type="redraft"
     with patch("fantasy_agent.config.Config.load",return_value=c), \
+         patch("fantasy_agent.analyst_ui._browser_identity",return_value="test-browser"), \
          patch("fantasy_agent.service.LeagueService.load",return_value=s), \
          patch("fantasy_agent.integrations.nflverse.NFLVerse.load",return_value=d), \
          patch("fantasy_agent.integrations.nflverse.NFLVerse.csv",return_value=(d.schedule,d.sources[0])):
