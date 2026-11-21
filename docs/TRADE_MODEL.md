@@ -73,10 +73,15 @@ For each supported player:
    usage uses ±15% opportunity changes. Regression labels compare forecast to
    observed PPG and do not assert a causal injury/coaching explanation.
 
-Out, doubtful, suspended, inactive, IR and taxi players are excluded from automatic
-offers. No return weeks are assigned. Questionable designations increase risk;
-there is no invented numerical medical probability. Healthy future lineups assume
-currently eligible players remain available. Daily catalog injury data may lag.
+Injured players, including out, doubtful, PUP and IR assets, can be included in
+offers when trustworthy evaluations and required valuation evidence exist.
+Trade eligibility is separate from forecast lineup availability: unavailable
+injured players remain excluded from forecast lineups, without invented return
+weeks or recovery probabilities. These packages have low confidence and explicit
+recovery uncertainty. Questionable designations increase risk. Unverified roles
+without an injury designation, suspended/inactive players without a documented
+injury, and taxi players remain excluded. Healthy future lineups assume currently
+eligible players remain available. Daily catalog injury data may lag.
 
 ## Lineups, needs and roster legality
 
@@ -92,11 +97,13 @@ but receive no invented value and are never automatically dropped. Team strength
 and needs compare best positional surplus to other league teams; counts/needs
 are signals, while exact lineup recomputation determines trade benefit.
 
-Active capacity is starter + bench slots. Reserved/taxi ownership is preserved;
-these assets are not proposed. A receiving side that exceeds capacity must drop
+Active capacity is starter + bench slots. IR assets are tradable; taxi assets
+remain excluded. Sending an IR asset frees no active slot, and incoming assets
+count against active capacity; no automatic IR placement is assumed. A receiving side that exceeds capacity must drop
 evaluated, nonincoming bench players, protecting its neutral optimal starters.
 Drop losses enter balance and depth; every week is recomputed and newly unfillable
-offensive slots are rejected. Vacant bench spots remain vacant. No successful
+offensive slots are rejected in automatic recommendations. Exact comparisons
+can show such proposals with an explicit vacancy warning. Vacant bench spots remain vacant. No successful
 waiver claims are assumed. The UI lists drops as conditions, not executed actions.
 
 Replacement is the median projected PPG of the best five eligible, evaluated free
@@ -114,7 +121,11 @@ both-team evaluation. Large selected structures take longer. Lineup-cache memory
 is bounded for free hosting without restricting how many players are analyzed.
 
 Redraft asset balance uses projected per-game points above free replacement.
+For unavailable injured assets this is conditional when-available production,
+not an injury-adjusted expected ROS valuation; recovery timing may materially
+change fairness. Their potential return contributes no forecast lineup points.
 Dynasty balance uses dated DynastyProcess 1QB/2QB community market values instead.
+These dated prices are not asserted to reflect the latest injury report.
 Those values already embody long-term community expectations and are separate
 from fantasy points; age/data dates are displayed. Missing or older-than-30-day
 values are not used. Both dynasty teams are limited to 10% market-value loss by

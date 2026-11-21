@@ -26,9 +26,9 @@ def test_trade_candidates_benefit_both_lineups_and_have_correct_ownership(scenar
 
 
 @pytest.mark.parametrize("send,receive", [(["demo-9"], ["demo-2"]), (["demo-2", "demo-2"], ["demo-9"]),
-                                            (["demo-6"], ["demo-9"]), (["demo-7"], ["demo-9"]),
+                                            (["demo-6"], ["demo-9"]),
                                             (["nobody"], ["demo-9"])])
-def test_illegal_ownership_duplicate_ir_and_taxi_rejected(scenario, send, receive):
+def test_illegal_ownership_duplicate_and_taxi_rejected(scenario, send, receive):
     with pytest.raises(ValueError):
         validate_ownership(scenario.snapshot, 1, 2, send, receive)
 
@@ -85,6 +85,78 @@ def test_inactive_players_never_enter_generated_packages(config):
     s.players["demo-24"].active = False
     run = TradeEngine(s, d, config).discover(1)
     assert all("demo-24" not in t.send + t.receive for t in run.trades)
+
+
+@pytest.mark.parametrize("designation",["Out","IR","PUP","Doubtful","Questionable"])
+@pytest.mark.parametrize("league_type",["redraft","dynasty"])
+def test_injured_assets_are_tradable_without_assumed_recovery(config,designation,league_type):
+    s,d=trade_demo();s.league_type=league_type
+    s.players["demo-24"].injury_status=designation
+    engine=TradeEngine(s,d,config)
+    assert "demo-24" in engine.candidate_pool(1)
+    assert engine.exclusion_reasons(1,"demo-24")==[]
+    proposal=engine.compare(1,2,["demo-24"],["demo-26"],TradeOptions(),enforce_preferences=False)
+    assert proposal is not None
+    if designation!="Questionable":
+        assert not engine.values["demo-24"].available
+        assert all(scores.get("demo-24",0)==0 for scores in engine.week_scores.values())
+        assert "demo-24" not in [pid for _,pid,_ in proposal.opponent_after.assignments]
+        assert proposal.confidence=="low"
+        assert any("No return week" in risk for risk in proposal.risks)
+        if league_type=="redraft":assert "Conditional when-available" in proposal.value_basis
+    else:
+        assert any("injury designation" in risk for risk in proposal.risks)
+
+
+def test_injured_player_can_be_required_in_automatic_search(config):
+    s,d=trade_demo();s.league_type="redraft"
+    s.players["demo-24"].injury_status="Out"
+    engine=TradeEngine(s,d,config)
+    run=engine.discover(1,TradeOptions(structures=[(1,1)],must_send=["demo-24"],max_value_imbalance=.8))
+    assert run.candidates_evaluated>0
+    assert run.trades and all("demo-24" in t.send for t in run.trades)
+
+
+def test_ir_assignment_establishes_trade_eligibility_without_catalog_designation(config):
+    s,d=trade_demo()
+    s.players["demo-7"].active=False
+    engine=TradeEngine(s,d,config)
+    assert "demo-7" in s.rosters[0].reserve
+    assert "demo-7" in engine.candidate_pool(1)
+    assert not engine.values["demo-7"].available
+
+
+def test_exact_injured_trade_discloses_new_lineup_vacancies(config):
+    s,d=trade_demo();s.league_type="redraft"
+    s.players["demo-26"].injury_status="Out"
+    # Team one's only available QB is outgoing; the incoming asset is injured.
+    s.rosters[0].players=["demo-0"]
+    s.rosters[0].reserve=[];s.rosters[0].taxi=[]
+    engine=TradeEngine(s,d,config)
+    proposal=engine.compare(1,2,["demo-0"],["demo-26"],TradeOptions(),enforce_preferences=False)
+    assert proposal is not None
+    assert any("slots unfilled" in risk for risk in proposal.risks)
+    assert engine.compare(1,2,["demo-0"],["demo-26"],TradeOptions()) is None
+
+
+@pytest.mark.parametrize("pid,rid",[("demo-24",1),("demo-26",2)])
+def test_ir_players_can_be_traded_on_either_side_with_active_capacity_drops(config,pid,rid):
+    s,d=trade_demo();s.league_type="dynasty"
+    # Fill the receiving active roster. An outgoing IR asset frees no active spot.
+    s.roster_positions=s.roster_positions[:-2]
+    roster=next(r for r in s.rosters if r.roster_id==rid)
+    roster.players.remove(pid);roster.reserve.append(pid)
+    roster.players.append("demo-16" if rid==1 else "demo-17")
+    s.players[pid].injury_status="IR";s.players[pid].active=False
+    engine=TradeEngine(s,d,config)
+    validate_ownership(s,1,2,["demo-24"],["demo-26"])
+    assert pid in engine.candidate_pool(rid)
+    proposal=engine.compare(1,2,["demo-24"],["demo-26"],TradeOptions(),enforce_preferences=False)
+    assert proposal is not None
+    drops=proposal.my_drops if rid==1 else proposal.opponent_drops
+    assert len(drops)==1
+    assert any("no automatic IR placement" in risk for risk in proposal.risks)
+    assert pid not in [p for lineup in (proposal.my_after,proposal.opponent_after) for _,p,_ in lineup.assignments]
 
 
 def test_conflicting_league_ownership_blocks_engine(config):

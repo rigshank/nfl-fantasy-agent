@@ -30,6 +30,9 @@ league ID, select a league and choose your team. No Sleeper password is needed.
   both-team offensive lineup gains, replacement costs and dated dynasty values.
   The outgoing picker is checked against current evaluation eligibility; excluded
   players have named reasons. It defaults to 2-for-1, with all structures available.
+  Injured and IR players can be traded when valuation evidence exists; forecast
+  lineups do not assume a return date. Incoming IR assets still count toward active
+  roster capacity, with required drops disclosed. Recovery uncertainty lowers confidence.
   Balance/confidence are heuristics, never acceptance probabilities. Larger trade
   structures take longer; no player shortlist or candidate-count cap is applied.
 - **Waiver Wire:** specific pickup/drop alternatives, protections, roster fit,
@@ -68,7 +71,8 @@ See `.env.example` and `.streamlit/secrets.toml.example`. Main variables:
 | `GEMINI_API_KEY` | Existing Google AI Studio API key |
 | `TAVILY_API_KEY` | Existing free Researcher key |
 | `GEMINI_MODEL` | `auto`, or a verified eligible model ID |
-| `GEMINI_THINKING_LEVEL` | `high` by default |
+| `GEMINI_THINKING_LEVEL` | `low` by default; explicit overrides are respected |
+| `GEMINI_TOOL_ROUNDS` | Maximum tool batches per question, default 3 (then one final answer request) |
 | `SLEEPER_USERNAME` | Your Sleeper username/user ID |
 | `SLEEPER_LEAGUE_ID` | League to load automatically |
 | `CACHE_PATH` | Relative disposable cache path; `.cache/fantasy.sqlite3` |
@@ -87,6 +91,31 @@ After a tool-stage failure, the replacement starts a fresh transcript containing
 completed evidence. Signatures and function-call IDs never cross models. There are
 no custom token/reasoning/output budgets or arbitrary research caps. Actual context
 limits, upstream minute-reset delays and free quotas are respected.
+
+### What a chat sends to Gemini
+
+Each generation receives the analyst instructions, read-only tool schemas, your
+question and prior chat text (role/content only), current league identity, and
+retrieved evidence. Later rounds also resend accumulated model/tool messages so
+signed function calls remain valid. API keys, raw cache files and UI state are
+not included in this payload. Full weekly player histories are opt-in.
+
+The backend now supplies fresh league context before the first generation. Exact
+full player names in the question also trigger a local batched lookup and summary
+evidence retrieval, without asking Gemini which names to look up. Named comparisons
+include the selected team and named players' teams in the initial roster directory;
+the complete league remains available through get_league. Full records stay in
+Supporting evidence. Partial names and ambiguous matches can be resolved together
+with compare_players. Statistical calculations run in Python, not in the LLM.
+
+A focused question can therefore finish in one generation when the initial
+evidence is sufficient. Current-news research or exact trade calculations may
+require additional tool rounds. The default allows three batches plus a final
+tools-disabled answer; missing evidence must be disclosed. Transient-error retries
+can add attempts. Daily request exhaustion is never retried or bypassed by model
+hopping. Lower thinking reduces tokens, but only fewer generation requests conserve
+a daily request-count allowance. countTokens checks are separate API calls, not
+answer generations. No UI changes are required.
 
 Keep the Gemini API project unbilled and Tavily on Researcher with pay-as-you-go
 disabled. Google AI Pro is separate from API access. An API key does not expose

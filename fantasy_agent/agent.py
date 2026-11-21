@@ -1,5 +1,6 @@
 """Small, read-only tool dispatcher sharing the dashboard's real-data services."""
 import statistics
+import re
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,6 +30,10 @@ class Empty(Args):
 class PlayerQuery(Args):
     query: str = ""
     position: str | None = None
+
+
+class PlayerBatch(Args):
+    queries: list[str] = Field(min_length=1, description="All player names to resolve and compare in one batch; exact names preferred.")
 
 
 class EvidenceArgs(Args):
@@ -72,6 +77,7 @@ class SearchArgs(Args):
 
 
 TOOLS = {
+    "compare_players": (PlayerBatch,"Resolve ALL named players and retrieve their statistical/dynasty evidence in ONE call. Prefer this over separate find_players and player_evidence calls for a focused comparison. Ambiguous matches remain explicitly labeled."),
     "team_strategy": (Empty,"For broad improve-my-team, league strategy or playoff-planning requests: collect league, all-team needs, waivers/breakouts, legal current lineup and realistic trades in ONE tool call using shared evidence. Then research the leading relevant decisions. Focused requests should use individual tools."),
     "get_league": (Empty,"Retrieve latest refreshed scoring, roster slots, your team, every opponent, records, current matchups, transactions and ownership."),
     "find_players": (PlayerQuery,"Resolve player names to exact Sleeper IDs with current team, injury metadata and owner. Empty query returns all matching catalog entries."),
@@ -79,7 +85,7 @@ TOOLS = {
     "player_evidence": (EvidenceArgs,"Observed statistics, targets/carries/snaps, trends, weekly statistical estimates, historical variability, dated dynasty values and missing evidence. Use to compare named players or analyze ALL players in scope; never invent projections."),
     "team_needs": (Empty,"Analyze every team's measured positional strength and needs relative to this league, including coverage and replacement scarcity."),
     "find_trades": (TradeArgs,"Search actual opponent rosters using dashboard trade service; rank real packages by both-team lineup gains, dynasty fairness and opponent needs. No trade is also a valid result."),
-    "evaluate_trade": (CompareTradeArgs,"Calculate an exact proposed trade for both teams, including unfavorable trades; validate ownership, roster drops, dynasty cost and gains. No acceptance probability."),
+    "evaluate_trade": (CompareTradeArgs,"Calculate an exact proposed trade for both teams, including unfavorable trades and injured/IR assets with valuation evidence. Injury limits forecast lineups, not trade eligibility; no return date is invented. Validate ownership, roster drops, dynasty cost and gains. No acceptance probability."),
     "waivers_and_breakouts": (WaiverArgs,"Dashboard waiver service: evaluate all eligible free players, legal pickup/drop alternatives and opportunity-based breakout signals on actual rosters."),
     "breakout_candidates": (EvidenceArgs,"Independent breakout/opportunity scouting across my, free or all players, optionally by position. Works even when own missing starter evidence prevents waiver comparisons."),
     "optimize_lineup": (LineupArgs,"Dashboard lineup service: exact legal current/future starters, kickoff locks, byes, injury metadata, substitutions and clearly labeled statistical estimates. Defaults to CURRENT week."),
@@ -107,6 +113,37 @@ class AgentTools:
         from google.genai import types
         return [types.FunctionDeclaration(name=name,description=description,parameters_json_schema=model.model_json_schema())
                 for name,(model,description) in TOOLS.items() if self.web or name!="search_news"]
+
+    def bootstrap(self,question,on_event=None):
+        """Known local facts do not need an LLM round trip to request them."""
+        league=self.call("get_league",{},on_event)
+        normalize=lambda text: " ".join(re.findall(r"\w+",text.casefold()))
+        text=" "+normalize(question)+" "
+        names=sorted({p.name for p in self.snapshot.players.values()
+                      if len(normalize(p.name).split())>=2 and " "+normalize(p.name)+" " in text})
+        evidence={"get_league":league}
+        if names:
+            # Keep the full refreshed snapshot in Supporting evidence. A named
+            # comparison needs the selected team and the named players' owners,
+            # not every unrelated team's directory and weekly transactions.
+            named_ids={p.player_id for p in self.snapshot.players.values() if p.name in names}
+            relevant={self.roster_id}|{r.roster_id for r in self.snapshot.rosters if owned(r)&named_ids}
+            if "result" in league:
+                focused=dict(league["result"])
+                teams=focused["teams"]
+                ids=named_ids|{pid for team in teams if team["id"] in relevant for pid in team["players"]}
+                focused["players"]=[row for row in focused["players"] if row[0] in ids]
+                focused["teams"]=[team if team["id"] in relevant else
+                    {k:v for k,v in team.items() if k not in {"players","starters","ir","taxi"}} for team in teams]
+                focused["matchups"]=[m for m in focused["matchups"] if m.get("roster_id") in relevant]
+                focused["recent_transactions"]=[t for t in focused["recent_transactions"] if relevant.intersection(t.get("roster_ids") or [])]
+                focused["context_scope"]="Selected team and named players' teams; get_league retrieves complete league rosters if needed."
+                evidence["get_league"]={**league,"result":focused}
+                # The model has seen only the focused view. Allow a subsequent
+                # request for the full directory to count as new evidence.
+                self.memo.pop("get_league:{}",None)
+            evidence["compare_players"]=self.call("compare_players",{"queries":names},on_event)
+        return evidence
 
     def load_data(self):
         if self.data is None:
@@ -143,6 +180,15 @@ class AgentTools:
                     ("get_league","team_needs","waivers_and_breakouts","optimize_lineup","find_trades")}
         if name=="get_league":
             return compact_context(s,self.roster_id)
+        if name=="compare_players":
+            matches={}
+            for query in a.queries:
+                exact=[p.player_id for p in s.players.values() if query.casefold()==p.name.casefold() or query==p.player_id]
+                matches[query]=exact or [p.player_id for p in s.players.values() if query.casefold() in p.name.casefold()]
+            ids=sorted({pid for found in matches.values() for pid in found})
+            return {"matches":matches,"ambiguous_queries":[q for q,found in matches.items() if len(found)>1],
+                    "unresolved_queries":[q for q,found in matches.items() if not found],
+                    "evidence":self.call("player_evidence",{"player_ids":ids},self.on_event) if ids else None}
         if name in {"find_players","get_free_agents"}:
             pool=free_players(s) if name=="get_free_agents" else s.players.values()
             ids=[p.player_id for p in pool if (not a.position or a.position.upper() in p.positions) and
@@ -193,7 +239,7 @@ class AgentTools:
             engine=TradeEngine(s,self.load_data(),self.config)
             proposal=engine.compare(self.roster_id,a.opponent_id,a.send,a.receive,TradeOptions(),enforce_preferences=False)
             return {"trade":proposal.model_dump(mode="json") if proposal else None,"players":self._players(a.send+a.receive),
-                    "limitations":engine.warnings+["A null trade means missing valuation/availability or unfillable/capacity constraints; do not assert it is fair or beneficial."],
+                    "limitations":engine.warnings+["A null trade means missing valuation/eligibility evidence or capacity constraints; injury alone does not prevent a trade. Do not assert a null result is fair or beneficial."],
                     "sources":[x.model_dump(mode="json") for x in self.data.sources]}
         if name=="waivers_and_breakouts":
             run=WaiverService(self.config,self.store,self.service,self.data_client).analyze(s,self.roster_id,sorted(set(self.protected+a.protected)),a.strategy.replace("_"," "),
@@ -322,6 +368,7 @@ class Analyst:
             raise ValueError("The selected team no longer exists in this league. Choose your team again.")
         tools=AgentTools(self.config,self.store,self.service,fresh,roster_id,web,protected,excluded=excluded)
         self.last_tools=tools
+        initial_evidence=tools.bootstrap(question,on_event)
         for message in history:
             if message.get("role")=="assistant" and message.get("research"):
                 bundle=ResearchBundle.model_validate(message["research"])
@@ -330,6 +377,7 @@ class Analyst:
                         tools.sources[source.url]=source
         text=self.gemini.run_agent({"league_id":fresh.league_id,"season":fresh.season,"week":fresh.week,
             "my_roster_id":roster_id,"refreshed_at":fresh.refreshed_at.isoformat(),"web_enabled":web,
+            "initial_evidence":initial_evidence,
             "recent_research":[{"url":s.url,"published_at":s.published_at,"retrieved_at":s.retrieved_at.isoformat()} for s in tools.sources.values()]},question,history,tools,on_event)
         tools.validate_sources(text)
         # A long research/model turn may overlap a claim, trade or starter change.

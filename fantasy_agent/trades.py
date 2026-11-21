@@ -25,8 +25,8 @@ def validate_ownership(snapshot, my_id, opponent_id, send, receive):
         raise ValueError("Trade player has missing or conflicting ownership.")
     for rid, package in [(my_id, send), (opponent_id, receive)]:
         roster = teams[rid]
-        if not set(package) <= owned(roster) - set(roster.reserve + roster.taxi):
-            raise ValueError("Trade includes a player owned by the wrong team or assigned to IR/taxi.")
+        if not set(package) <= owned(roster) - set(roster.taxi):
+            raise ValueError("Trade includes a player owned by the wrong team or assigned to taxi.")
 
 
 def active_capacity(snapshot):
@@ -97,6 +97,19 @@ class TradeEngine:
             return value.dynasty_value
         return max(0, value.projected_ppg - self.replacement[value.position])
 
+    def injury_limited(self, pid):
+        """A documented injury can limit forecasts without preventing a trade.
+
+        Missing appearances alone never establish an injury or a recovery date.
+        """
+        player=self.snapshot.players.get(pid)
+        if not player or not player.known:
+            return False
+        injury_statuses={"OUT","O","IR","PUP","DOUBTFUL","D","QUESTIONABLE","Q"}
+        return (str(player.injury_status or "").upper() in injury_statuses or
+                str(player.status or "").upper() in {"IR","PUP"} or
+                any(pid in r.reserve for r in self.snapshot.rosters))
+
     def _reports(self):
         reports = []
         for roster in self.snapshot.rosters:
@@ -150,9 +163,9 @@ class TradeEngine:
     def compare(self, my_id, opponent_id, send, receive, options: TradeOptions, enforce_preferences=True, _generated=False):
         if not _generated:
             validate_ownership(self.snapshot, my_id, opponent_id, list(send), list(receive))
-        for pid in list(send) + list(receive):
-            if pid not in self.values or not self.values[pid].available or self.values[pid].games < 3 or self.asset(pid) is None:
-                return None
+        if any(self.exclusion_reasons(rid,pid) for rid,package in
+               ((my_id,send),(opponent_id,receive)) for pid in package):
+            return None
         mine = owned(self.rosters[my_id]) - set(self.rosters[my_id].reserve + self.rosters[my_id].taxi)
         theirs = owned(self.rosters[opponent_id]) - set(self.rosters[opponent_id].reserve + self.rosters[opponent_id].taxi)
         my_after, my_drops = self._trim((mine - set(send)) | set(receive), receive)
@@ -175,21 +188,22 @@ class TradeEngine:
         for before, after in [(mine, my_after), (theirs, opp_after)]:
             deltas = {w: self.lineup(after, w).total - self.lineup(before, w).total for w in self.weeks}
             # A proposal must not create a newly unfillable offensive slot.
-            if any(self.lineup(after, w).missing_slots > self.lineup(before, w).missing_slots for w in self.weeks):
+            if enforce_preferences and any(self.lineup(after, w).missing_slots > self.lineup(before, w).missing_slots for w in self.weeks):
                 return None
             gains.append(deltas)
         my_ros, opp_ros = sum(gains[0].values()), sum(gains[1].values())
         if enforce_preferences and (my_ros < options.min_my_ros_gain or opp_ros < options.min_opponent_ros_gain):
             return None
         my_bench, opp_bench = self._bench(my_after) - self._bench(mine), self._bench(opp_after) - self._bench(theirs)
-        risk = statistics.mean(self.values[p].risk for p in list(send) + list(receive))
+        unavailable_injured=[p for p in list(send)+list(receive) if self.injury_limited(p) and not self.values[p].available]
+        risk = statistics.mean(max(self.values[p].risk,.5) if p in unavailable_injured else self.values[p].risk for p in list(send) + list(receive))
         consolidation = max(0, len(send) - len(receive))
         rank = (my_ros + options.opponent_weight * opp_ros) / len(self.weeks)
         rank += options.consolidation_weight * consolidation * max(self.values[p].projected_ppg for p in receive)
         rank -= imbalance + options.risk_weight * risk * 5 + .05 * max(0, -my_bench)
         playoff_start = int(self.snapshot.settings.get("playoff_week_start") or 0)
         playoff = [sum(v for w, v in delta.items() if w >= playoff_start) if playoff_start else None for delta in gains]
-        low = any(self.values[p].games < 5 or self.values[p].risk > .4 for p in list(send) + list(receive))
+        low = bool(unavailable_injured) or any(self.values[p].games < 5 or self.values[p].risk > .4 for p in list(send) + list(receive))
         noise = statistics.mean(self.values[p].consistency_sd for p in list(send) + list(receive))
         marginal_gain = min(my_ros, opp_ros) / len(self.weeks) < max(1, noise * .25)
         low |= marginal_gain
@@ -202,11 +216,21 @@ class TradeEngine:
             risks.append("At least one team's projected benefit is small relative to historical variability; that incentive is uncertain.")
         if any(self.snapshot.players[p].injury_status for p in list(send) + list(receive)):
             risks.append("A package player has an injury designation; verify the current report.")
+        if unavailable_injured:
+            names=", ".join(self.snapshot.players[p].name for p in unavailable_injured)
+            risks.append(f"Injured trade assets ({names}) remain excluded from forecast lineups. No return week or recovery probability was assumed; lineup gains do not include their potential return.")
+            risks.append("Dynasty values are dated community market evidence, not verified injury-adjusted prices." if self.dynasty else
+                         "Redraft balance uses conditional when-available production above replacement, not an injury-adjusted expected ROS value; recovery timing could materially change fairness.")
+        if any(p in self.rosters[rid].reserve for rid,package in ((my_id,send),(opponent_id,receive)) for p in package):
+            risks.append("Incoming IR players count against active roster capacity; no automatic IR placement or eligibility was assumed.")
+        if any(self.lineup(after,w).missing_slots>self.lineup(before,w).missing_slots
+               for before,after in ((mine,my_after),(theirs,opp_after)) for w in self.weeks):
+            risks.append("This exact proposal leaves additional offensive slots unfilled under current availability; no replacement pickup was assumed.")
         if playoff_start:
             risks.append("Playoff points are conditional on qualifying, not a playoff probability.")
         reasons = [f"Your modeled offensive starters gain {my_ros:.1f} total points across weeks {self.start}–{self.end}.",
                    f"Opponent modeled offensive starters gain {opp_ros:.1f}; positional depth and all flex slots are recomputed.",
-                   f"Package balance is {100 * (1 - imbalance):.0f}/100 using {'dated dynasty market values' if self.dynasty else 'projected points above free-agent replacement'}."]
+                   f"Package balance is {100 * (1 - imbalance):.0f}/100 using {'dated dynasty market values' if self.dynasty else 'conditional when-available points above replacement' if unavailable_injured else 'projected points above free-agent replacement'}."]
         partner = next(r for r in self.reports if r.roster_id == opponent_id)
         reasons.append(f"Opponent receives {'/'.join(sorted({self.values[p].position for p in send}))}; their relative positional needs are {'/'.join(partner.needs)}. This is a roster incentive, not an acceptance prediction.")
         if consolidation:
@@ -219,7 +243,9 @@ class TradeEngine:
             my_playoff_gain=playoff[0], opponent_playoff_gain=playoff[1],
             my_bench_change=my_bench, opponent_bench_change=opp_bench,
             balance_score=100 * (1 - imbalance), value_imbalance=imbalance,
-            value_basis="DynastyProcess long-term community market values" if self.dynasty else "Projected per-game points above available-player replacement",
+            value_basis="DynastyProcess long-term community market values" if self.dynasty else
+                "Conditional when-available per-game points above replacement; injury recovery timing unverified" if unavailable_injured else
+                "Projected per-game points above available-player replacement",
             my_dynasty_gain=received - my_lost if self.dynasty else None,
             opponent_dynasty_gain=sent - opp_lost if self.dynasty else None,
             rank_score=rank, confidence="low" if low else "medium", my_after=self.lineup(my_after, self.start),
@@ -230,13 +256,12 @@ class TradeEngine:
         player=self.snapshot.players.get(pid)
         if pid not in owned(roster):return ["not owned by this team"]
         reasons=[]
-        if pid in roster.reserve:reasons.append("assigned to injured reserve")
         if pid in roster.taxi:reasons.append("assigned to taxi squad")
         if not player or not OFFENSE.intersection(player.positions):reasons.append("not a supported offensive trade position")
         value=self.values.get(pid)
         if value is None:reasons.append("no trustworthy ID-mapped statistical evaluation under league scoring")
         else:
-            if not value.available:
+            if not value.available and not self.injury_limited(pid):
                 status=(player.injury_status or player.status) if player else None
                 reasons.append("forecast availability/role unverified"+(f" (catalog: {status})" if status else ""))
                 reasons.extend(x for x in value.limitations if "appearance" in x or "availability/role" in x)
@@ -287,7 +312,7 @@ class TradeEngine:
                 for send, receive in pairs():
                     evaluated += 1
                     # Pools were constructed from verified unique ownership and
-                    # active non-IR/taxi players in this immutable analysis turn.
+                    # tradable non-taxi players in this immutable analysis turn.
                     trade = self.compare(my_id, rid, send, receive, options, _generated=True)
                     if trade:
                         trades.append(trade)

@@ -32,7 +32,7 @@ def test_quality_reasoning_has_no_custom_token_or_context_budget(config,store):
     assert kwargs["model"] == "gemini-4-hydrogen"
     assert kwargs["config"].max_output_tokens is None
     assert kwargs["config"].thinking_config.thinking_budget is None
-    assert kwargs["config"].thinking_config.thinking_level.value == "HIGH"
+    assert kwargs["config"].thinking_config.thinking_level.value == "LOW"
     assert "x"*10000 in kwargs["contents"]
     assert store.usage()[0]["tokens"] == 100
 

@@ -86,6 +86,60 @@ def test_only_provider_advised_minute_reset_can_retry():
     assert minute_retry(error,100) is None
 
 
+def test_named_comparison_bootstraps_evidence_without_model_roundtrip(config,store):
+    s,d=trade_demo()
+    client=Mock();client.load.return_value=d;client.csv.return_value=(d.schedule,d.sources[0])
+    tools=AgentTools(config,store,Mock(),s,1,data_client=client)
+    names=[s.players[pid].name for pid in ("demo-1","demo-8","demo-24")]
+    evidence=tools.bootstrap("Should I trade "+" and ".join(names)+"? Newer pick included.")
+    result=evidence["compare_players"]["result"]
+    assert set(result["matches"])==set(names)
+    assert result["ambiguous_queries"]==[]
+    assert len(result["evidence"]["result"]["players"])==3
+    assert {r["tool"] for r in tools.records}>={"get_league","compare_players","player_evidence"}
+    assert "context_scope" in evidence["get_league"]["result"]
+    # Expanding the initial focused context must not trip the duplicate guard.
+    assert not tools.call("get_league",{})["cached_this_turn"]
+
+
+def test_batched_lookup_keeps_ambiguity_and_does_not_expand_missing_names(config,store):
+    s,d=trade_demo();tools=AgentTools(config,store,Mock(),s,1)
+    missing=tools.call("compare_players",{"queries":["No Such Player"]})["result"]
+    assert missing["unresolved_queries"]==["No Such Player"] and missing["evidence"] is None
+    with patch.object(tools,"evidence",return_value={}):
+        result=tools.call("compare_players",{"queries":["Demo"]})["result"]
+    assert result["ambiguous_queries"]==["Demo"]
+    assert len(result["matches"]["Demo"])==len(s.players)
+
+
+def test_tool_round_limit_forces_final_answer_and_retains_evidence(config,store):
+    config.gemini_tool_rounds=1
+    client=gemini_client()
+    client.models.generate_content.side_effect=[
+        model_response([types.Part(function_call=types.FunctionCall(name="get_league",args={}))]),
+        model_response([types.Part(text="Advice with missing evidence disclosed")])]
+    dispatcher=Mock();dispatcher.declarations.return_value=[]
+    dispatcher.call.return_value={"result":{"observed":True}}
+    answer=Gemini(config,store,client).run_agent({},"Question",[],dispatcher)
+    assert "Advice" in answer and client.models.generate_content.call_count==2
+    assert client.models.generate_content.call_args.kwargs["config"].tools is None
+    assert dispatcher.call.call_count==1
+    assert "observed" in str(client.models.generate_content.call_args.kwargs["contents"])
+
+
+def test_seeded_named_question_can_finish_in_one_generation(config,store):
+    s,d=trade_demo();service=Mock();service.load.return_value=s
+    client=gemini_client();client.models.generate_content.return_value=model_response([types.Part(text="Conditional recommendation")])
+    data_client=Mock();data_client.load.return_value=d;data_client.csv.return_value=(d.schedule,d.sources[0])
+    with patch("fantasy_agent.agent.NFLVerse",return_value=data_client):
+        _,message=Analyst(config,store,service,Gemini(config,store,client)).run(
+            s,1,"Compare "+s.players["demo-1"].name+" and "+s.players["demo-8"].name,[])
+    assert client.models.generate_content.call_count==1
+    assert {r["tool"] for r in message["tools"]}>={"get_league","player_evidence"}
+    prompt=client.models.generate_content.call_args.kwargs["contents"][0].parts[0].text
+    assert "initial_evidence" in prompt and "dynasty" in prompt
+
+
 def test_model_summaries_keep_every_candidate_and_full_ui_evidence(config,store):
     s,d=trade_demo();tools=AgentTools(config,store,Mock(),s,1)
     signals=[{"player_id":str(i),"score":i,"label":"growth","confidence":"low","recent_games":3,"prior_games":3,

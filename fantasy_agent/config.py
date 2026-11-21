@@ -10,7 +10,8 @@ class Config(BaseModel):
     gemini_api_key: SecretStr = SecretStr("")
     tavily_api_key: SecretStr = SecretStr("")
     gemini_model: str = "auto"
-    gemini_thinking_level: str = "high"
+    gemini_thinking_level: str = "low"
+    gemini_tool_rounds: int = Field(3, ge=0, le=10)
     league_cache_seconds: int = Field(300, ge=10, le=3600)
     cache_path: Path = Path(".cache/fantasy.sqlite3")
     sleeper_username: str = ""

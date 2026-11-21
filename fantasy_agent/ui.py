@@ -91,39 +91,64 @@ def overview(snapshot, roster):
         st.button("Analyze my team with AI",on_click=ask_strategy,type="primary",width="stretch")
     st.caption("Charts count position eligibility, so multi-position players can count twice. Catalog injury flags are not medical clearance.")
     waivers=st.session_state.get('waiver_run');trades=st.session_state.get('trade_run');breakouts=st.session_state.get('breakout_run')
+    bench=owned(roster)-set(roster.starters+roster.reserve+roster.taxi)
+    pool=free_players(snapshot)
+    pool_counts={pos:sum(pos in p.positions for p in pool) for pos in ("QB","RB","WR","TE")}
+    pool_detail=" · ".join(f"{n} {pos}" for pos,n in pool_counts.items())
+    active=owned(roster)-set(roster.reserve+roster.taxi)
+    capacity=sum(slot not in {"IR","TAXI"} for slot in snapshot.roster_positions)
+    openings=max(0,capacity-len(active))
+    flags=[snapshot.players[p] for p in sorted(owned(roster)) if snapshot.players[p].injury_status]
+    bench_positions={}
+    for pid in bench:
+        position=" / ".join(snapshot.players[pid].positions) or "Unknown"
+        bench_positions[position]=bench_positions.get(position,0)+1
+    breakdown=" · ".join(f"{n} {p}" for p,n in sorted(bench_positions.items())) or "No bench players outside IR / taxi"
+    previews={
+        "Waiver Wire":[("Position supply",pool_detail,f"{len(pool):,} free"),
+                       ("Roster room",f"{len(active)} active players · {capacity} active slots",f"{openings} open"),
+                       ("Availability watch",", ".join(p.name for p in flags[:2]) if flags else "No injury designations in the current catalog",f"{len(flags)} flags")],
+        "Trade Finder":[("League market",snapshot.league_type.title()+" · Actual opponent rosters",f"{max(0,len(snapshot.rosters)-1)} rivals"),
+                        ("Your bench",breakdown,f"{len(bench)} players"),
+                        ("Consolidation route","Compare depth packages for a starter upgrade.","2-for-1")],
+        "Breakout Radar":[("Your bench watch",", ".join(snapshot.players[p].name for p in sorted(bench,key=lambda p:snapshot.players[p].name)[:2]) or "Your bench is currently empty",f"{len(bench)} players"),
+                          ("Available scouting pool",pool_detail,f"{sum(bool(set(p.positions)&{'QB','RB','WR','TE'}) for p in pool):,} offense"),
+                          ("Follow role growth","Compare targets, carries and snap share across verified games.","Usage")]
+    }
     for col,title,page,run,items in zip(st.columns(3),["◇  Waiver shortlist","⇄  Trade opportunities","↗  Breakout watch"],
             ["Waiver Wire","Trade Finder","Breakout Radar"],[waivers,trades,breakouts],
             [waivers.pickups if waivers else [],trades.trades if trades else [],breakouts.signals if breakouts else []]):
-        with col,st.container(border=True,height="stretch" if page=="Trade Finder" else "content"):
+        with col,st.container(border=True,height="stretch",key="overview_opportunity_"+page.replace(" ","_")):
             st.subheader(title)
+            rows=[]
             if run:
                 st.caption("Last analysis · "+local_time(run.snapshot_at))
                 for item in items[:3]:
                     if page=="Trade Finder":
                         opponent=next((r.manager for r in snapshot.rosters if r.roster_id==item.opponent_id),f"Roster {item.opponent_id}")
-                        design.row(" + ".join(snapshot.players[p].name for p in item.receive),"With "+opponent+" · Send: "+" + ".join(snapshot.players[p].name for p in item.send),f"{item.my_ros_gain:+.1f} ROS")
+                        rows.append((" + ".join(snapshot.players[p].name for p in item.receive),"With "+opponent+" · Send: "+" + ".join(snapshot.players[p].name for p in item.send),f"{item.my_ros_gain:+.1f} ROS"))
                     else:
                         player=snapshot.players[item.player_id]
                         detail=" / ".join(player.positions)+" · "+(player.team or "No NFL team")
-                        design.row(player.name,detail,f"{item.ros_gain:+.1f} ROS" if page=="Waiver Wire" else f"{item.score:.0f} signal")
-                if not items:st.caption("No qualifying results in this analysis.")
-                if page=="Trade Finder" and items:
-                    st.caption(f"{len(items)} ranked offers · ROS gains are model estimates, not guaranteed outcomes. Review opponent gains, confidence and required drops in Trade Finder.")
-            elif page=="Trade Finder":
-                st.caption("No trade analysis yet · Current roster context")
-                bench=owned(roster)-set(roster.starters+roster.reserve+roster.taxi)
-                bench_positions={}
-                for pid in bench:
-                    position=" / ".join(snapshot.players[pid].positions) or "Unknown"
-                    bench_positions[position]=bench_positions.get(position,0)+1
-                breakdown=" · ".join(f"{n} {p}" for p,n in sorted(bench_positions.items())) or "No bench players outside IR / taxi"
-                design.row("League market",snapshot.league_type.title()+" · Actual opponent rosters",f"{max(0,len(snapshot.rosters)-1)} opponents")
-                design.row("Your bench",breakdown,f"{len(bench)} players")
-                design.row("Explore consolidation","Compare 2-for-1 packages for starter upgrades. Player eligibility and both teams’ gains are checked in Trade Finder.","2-for-1")
-                st.caption("Roster counts describe depth, not trade value. No offers or player targets have been generated yet.")
+                        if page=="Waiver Wire":
+                            detail+=" · Drop "+snapshot.players[item.drop_id].name if item.drop_id else " · Open-slot pickup"
+                        else:
+                            detail+=" · "+item.label
+                        rows.append((player.name,detail,f"{item.ros_gain:+.1f} ROS" if page=="Waiver Wire" else f"{item.score:.0f} signal"))
+                note={"Trade Finder":"Review both teams’ gains, confidence and required drops. ROS gains are estimates.",
+                      "Waiver Wire":"Each pickup is an alternative. Review required drops, confidence and claim eligibility.",
+                      "Breakout Radar":"Signals reflect measured role changes. Review the usage windows and evidence coverage."}[page]
+                if not items:note="No qualifying results in the last analysis. Current roster context is shown here."
             else:
-                st.html('<div class="ff-empty">Your shortlist appears after analysis. Open this workspace to find evidence-backed opportunities.</div>')
-            if page=="Trade Finder":st.space("stretch")
+                st.caption("Not analyzed yet · Current roster context")
+                note={"Trade Finder":"Roster depth is context. Analysis checks player eligibility, package balance and both teams’ gains.",
+                      "Waiver Wire":"Pool counts describe availability. Run analysis for ranked pickup/drop gains and claim guidance.",
+                      "Breakout Radar":"Bench names are an unranked watch pool. Run analysis to find measured opportunity growth."}[page]
+            rows+=previews[page][len(rows):]
+            st.html('<div class="ff-opportunity-content">'+''.join(
+                '<div class="ff-row"><div class="ff-opportunity-copy"><b title="'+escape(str(name),quote=True)+'">'+escape(str(name))+'</b><small title="'+escape(str(detail),quote=True)+'">'+escape(str(detail))+'</small></div><span class="ff-pill">'+escape(str(value))+'</span></div>'
+                for name,detail,value in rows)+'</div><p class="ff-opportunity-note">'+escape(note)+'</p>')
+            st.space("stretch")
             design.link("Open "+page+" →",page,"overview_"+page)
     with st.container(border=True):
         st.subheader("♜  League standings")
